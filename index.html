@@ -84,14 +84,35 @@
         </div>
       </details>
 
+      <details><summary>Mission sequence</summary>
+        <div class="sect">
+          <div class="row"><label><input type="checkbox" id="seqmode"> Sequence mode</label></div>
+          <div class="row">
+            <span class="lbl">Load mission</span>
+            <select id="seqpreset" style="flex:1"><option value="">— pick —</option></select>
+          </div>
+          <div class="row">
+            <span class="lbl">Display</span>
+            <label><input type="radio" name="seqdisp" id="seqanim" checked> Animated</label>
+            <label><input type="radio" name="seqdisp" id="seqlayer"> Layered</label>
+          </div>
+          <div id="g-seq"></div>
+          <div class="row"><span class="lbl">Keyframes (2–8)</span></div>
+          <div id="kf-list"></div>
+          <div class="row"><button id="kf-add">＋ Add keyframe (capture current)</button></div>
+        </div>
+      </details>
+
       <details><summary>View</summary>
         <div class="sect">
           <div id="g-view"></div>
           <div class="row">
             <button id="resetview">⤾ Reset view</button>
             <label><input type="checkbox" id="body"> Body</label>
+            <label><input type="checkbox" id="focus"> Focus</label>
             <label><input type="checkbox" id="occlude"> Occlusion</label>
             <label><input type="checkbox" id="stars"> Starfield</label>
+            <label><input type="checkbox" id="retro"> Retrograde</label>
           </div>
         </div>
       </details>
@@ -194,24 +215,28 @@
 
   // ---------- controls registry ----------
   const RANGE=[
-    {id:'num',  group:'orbit',label:'Satellites',        min:2,max:60, step:1,   val:14,  restart:true},
+    {id:'num',  group:'orbit',label:'Satellites',        min:2,max:100,step:1,   val:29,  restart:true},
     {id:'ecc',  group:'orbit',label:'Eccentricity',      min:0,max:0.85,step:0.01,val:0.6},
-    {id:'incs', group:'orbit',label:'Inclination spread',min:0,max:90, step:1,   val:55},
+    {id:'incs', group:'orbit',label:'Inclination spread',min:0,max:90, step:0.5, val:55},
     {id:'incbias',group:'orbit',label:'Inclination spacing bias',min:-1,max:1,step:0.05,val:0},
     {id:'raans',group:'orbit',label:'RAAN spread',       min:0,max:180,step:1,   val:20},
     {id:'raanbias',group:'orbit',label:'RAAN spacing bias',min:-1,max:1,step:0.05,val:0},
     {id:'apod', group:'orbit',label:'Apogee direction',  min:0,max:360,step:1,   val:180},
-    {id:'apos', group:'orbit',label:'Apogee spread',     min:0,max:220,step:1,   val:70},
+    {id:'apos', group:'orbit',label:'Apogee spread',     min:0,max:720,step:1,   val:70},
+    {id:'sizespread',group:'orbit',label:'Size spread',  min:0,max:1,  step:0.02,val:0},
     {id:'dur',  group:'anim', label:'Reveal time',       min:1,max:20, step:0.5, val:3,   restart:true},
     {id:'stagger',group:'anim',label:'Reveal stagger',   min:0,max:1,  step:0.01,val:0},
-    {id:'psi',  group:'view', label:'View tilt',         min:0,max:85, step:1,   val:25},
+    {id:'psi',  group:'view', label:'View tilt',         min:-180,max:180,step:1, val:25},
     {id:'roll', group:'view', label:'Roll',              min:-180,max:180,step:1, val:0},
     {id:'scale',group:'view', label:'Scale',             min:0.2,max:3,step:0.05, val:1},
+    {id:'bodysize',group:'view',label:'Body size',       min:0.02,max:0.6,step:0.01,val:0.12},
     {id:'lw',   group:'style',label:'Line weight',       min:0.4,max:6,step:0.1,  val:1.6},
     {id:'wmsize',group:'style',label:'Wordmark size',    min:5,max:100,step:1,    val:35},
     {id:'clear', group:'style',label:'Clear space %',    min:0,max:40, step:1,    val:8},
+    {id:'seqdwell',group:'seq',label:'Dwell (s)',        min:0,max:5,  step:0.1,  val:0.8},
+    {id:'seqtrans',group:'seq',label:'Transition (s)',   min:0.1,max:8,step:0.1,  val:1.5},
   ];
-  const CHECKS=['loop','sat','fly','body','occlude','stars','wm','cbg','lc','guides'];
+  const CHECKS=['loop','sat','fly','body','occlude','stars','wm','cbg','lc','guides','focus','retro'];
 
   function afterChange(id){
     if(id==='scale') zoom=parseFloat($('scale').value);
@@ -237,8 +262,8 @@
         apodEl=$('apod'),aposEl=$('apos'),psiEl=$('psi'),rollEl=$('roll'),scaleEl=$('scale'),lwEl=$('lw'),wmSizeEl=$('wmsize');
   const loopEl=$('loop'),satEl=$('sat'),flyEl=$('fly'),bodyEl=$('body'),occludeEl=$('occlude'),
         starsEl=$('stars'),wmOnEl=$('wm'),customBgEl=$('cbg'),bgcolorEl=$('bgcolor'),transparentEl=$('tr'),
-        customLineEl=$('lc'),linecolorEl=$('linecolor'),guidesEl=$('guides'),
-        raanbiasEl=$('raanbias'),incbiasEl=$('incbias'),clearEl=$('clear'),
+        customLineEl=$('lc'),linecolorEl=$('linecolor'),guidesEl=$('guides'),focusEl=$('focus'),retroEl=$('retro'),
+        raanbiasEl=$('raanbias'),incbiasEl=$('incbias'),sizespreadEl=$('sizespread'),bodysizeEl=$('bodysize'),clearEl=$('clear'),
         aspectEl=$('aspect'),resEl=$('res'),stageEl=$('stage'),viewportEl=$('viewport'),
         gsizeEl=$('gsize'),gfpsEl=$('gfps');
   const lineHex=()=>customLineEl.checked?linecolorEl.value:theme().line;
@@ -277,7 +302,8 @@
   window.addEventListener('resize',resize);
 
   // ---------- world / camera ----------
-  const A=1, D=6, BODY=0.12;
+  const A=1, D=6;
+  let BODY=0.12;          // body radius (driven by the Body size slider)
   function viewParams(){return {SCALE:0.3*H*D/A*zoom, AX:W*0.5+panX, AY:H*0.5+panY};}
   function project(vp,X,Y,Z,persp,roll){
     const cr=Math.cos(roll),sr=Math.sin(roll);
@@ -287,8 +313,8 @@
   }
   function hidden(X,Y,Z){const r2=X*X+Y*Y;return r2<BODY*BODY && Z<Math.sqrt(BODY*BODY-r2);}
 
-  function keplerPt(e,inc,Om,w,nu,psi){
-    const p=A*(1-e*e)/(1+e*Math.cos(nu));
+  function keplerPt(a,e,inc,Om,w,nu,psi){
+    const p=a*(1-e*e)/(1+e*Math.cos(nu));
     let x=p*Math.cos(nu), y=p*Math.sin(nu), z=0, c,s,a1,b1;
     c=Math.cos(w);s=Math.sin(w); a1=x*c-y*s; b1=x*s+y*c; x=a1;y=b1;
     c=Math.cos(inc);s=Math.sin(inc); a1=y*c-z*s; b1=y*s+z*c; y=a1;z=b1;
@@ -299,15 +325,22 @@
   function trueAnom(M,e){let E=M;for(let k=0;k<6;k++)E=E-(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));
     return 2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2),Math.sqrt(1-e)*Math.cos(E/2));}
 
-  function elements(k,N){
+  // orbit-element params that make up a config / keyframe
+  const ORBIT_PARAMS=['num','ecc','incs','raans','apod','apos','sizespread','raanbias','incbias'];
+  function readParams(){const p={};ORBIT_PARAMS.forEach(id=>p[id]=parseFloat($(id).value));return p;}
+  function loadParams(p){ORBIT_PARAMS.forEach(id=>{if(p[id]!=null)setRange(id,p[id]);});}
+  function lerpParams(a,b,u){const o={};ORBIT_PARAMS.forEach(id=>o[id]=a[id]+(b[id]-a[id])*u);
+    const sa=a.size!=null?a.size:1, sb=b.size!=null?b.size:1; o.size=sa+(sb-sa)*u; return o;}
+
+  function elements(k,N,P){
     const t=N>1?k/(N-1):0.5, u=t-0.5;
-    const tw=warp(t,parseFloat(raanbiasEl.value));    // RAAN spacing bias
-    const ti=warp(t,parseFloat(incbiasEl.value));     // inclination spacing bias
+    const tw=warp(t,P.raanbias), ti=warp(t,P.incbias);
     return {
-      e:   parseFloat(eccEl.value),
-      inc: (ti*parseFloat(incsEl.value))*D2R,
-      Om:  ((tw-0.5)*parseFloat(raansEl.value))*D2R,
-      w:   (parseFloat(apodEl.value)+u*parseFloat(aposEl.value))*D2R,
+      a:   (P.size!=null?P.size:1)*A*(1+P.sizespread*(t-0.5)*1.2),
+      e:   P.ecc,
+      inc: (ti*P.incs)*D2R,
+      Om:  ((tw-0.5)*P.raans)*D2R,
+      w:   (P.apod+u*P.apos)*D2R,
     };
   }
 
@@ -359,11 +392,11 @@
     ctx.strokeStyle=rgba(hexRGB(lineHex()),alpha);
     ctx.lineWidth=parseFloat(lwEl.value)*(H/620);ctx.lineCap='round';ctx.lineJoin='round';
     const end=nuEnd!=null?nuEnd:TWO_PI;
-    const steps=nuEnd!=null?Math.max(2,Math.ceil(SEG*end/TWO_PI)):SEG;
+    const steps=nuEnd!=null?Math.max(2,Math.ceil(SEG*Math.abs(end)/TWO_PI)):SEG;
     const occ=occludeEl.checked;let drawing=false;
     for(let k=0;k<=steps;k++){
       const nu=(k/steps)*end;
-      const w=keplerPt(el.e,el.inc,el.Om,el.w,nu,vp.psi);
+      const w=keplerPt(el.a,el.e,el.inc,el.Om,el.w,nu,vp.psi);
       const vis=!(occ&&hidden(w.X,w.Y,w.Z));
       const p=project(vp,w.X,w.Y,w.Z,0,roll);
       if(vis){if(!drawing){ctx.beginPath();ctx.moveTo(p.x,p.y);drawing=true;}else ctx.lineTo(p.x,p.y);}
@@ -376,7 +409,7 @@
     const occ=occludeEl.checked;const out=[];let cur='';
     for(let k=0;k<=SEG;k++){
       const nu=(k/SEG)*TWO_PI;
-      const w=keplerPt(el.e,el.inc,el.Om,el.w,nu,vp.psi);
+      const w=keplerPt(el.a,el.e,el.inc,el.Om,el.w,nu,vp.psi);
       const vis=!(occ&&hidden(w.X,w.Y,w.Z));
       const p=project(vp,w.X,w.Y,w.Z,0,roll);
       if(vis){cur+=(cur===''?'M':'L')+p.x.toFixed(2)+' '+p.y.toFixed(2)+' ';}
@@ -387,7 +420,7 @@
   }
 
   function drawSat(el,nu,alpha,vp,persp,roll){
-    const th=theme();const w=keplerPt(el.e,el.inc,el.Om,el.w,nu,vp.psi);
+    const th=theme();const w=keplerPt(el.a,el.e,el.inc,el.Om,el.w,nu,vp.psi);
     if(occludeEl.checked&&hidden(w.X,w.Y,w.Z))return;
     const p=project(vp,w.X,w.Y,w.Z,persp,roll);
     const glow=hexRGB(th.satGlow),core=hexRGB(th.satCore);
@@ -421,10 +454,10 @@
   }
 
   // bounding box of the full mark (all orbits) in screen px — the alignment anchor
-  function markBounds(vp,roll){
-    let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;const N=parseInt(numEl.value,10),ST=40;
-    for(let k=0;k<N;k++){const el=elements(k,N);
-      for(let i=0;i<=ST;i++){const w=keplerPt(el.e,el.inc,el.Om,el.w,(i/ST)*TWO_PI,vp.psi);
+  function markBounds(vp,roll,P){
+    let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;const N=Math.max(1,Math.round(P.num)),ST=40;
+    for(let k=0;k<N;k++){const el=elements(k,N,P);
+      for(let i=0;i<=ST;i++){const w=keplerPt(el.a,el.e,el.inc,el.Om,el.w,(i/ST)*TWO_PI,vp.psi);
         const p=project(vp,w.X,w.Y,w.Z,0,roll);
         if(p.x<minx)minx=p.x;if(p.x>maxx)maxx=p.x;if(p.y<miny)miny=p.y;if(p.y>maxy)maxy=p.y;}}
     return {minx,miny,maxx,maxy,cx:(minx+maxx)/2,cy:(miny+maxy)/2,w:maxx-minx,h:maxy-miny};
@@ -454,39 +487,108 @@
     }
   }
 
+  // draw the whole constellation for a params object P at opacity alpha
+  function drawConstellation(P,alpha,vp,roll,opts){
+    opts=opts||{};
+    const N=Math.max(1,Math.round(P.num));
+    const reveal=opts.reveal!=null?opts.reveal:1, dir=opts.dir||1, tsec=opts.tsec||0, dur=opts.dur||1;
+    for(let k=0;k<N;k++){
+      const el=elements(k,N,P);
+      const lw=reveal>=1?1:orbitWall(reveal,k,N);
+      if(lw<=0)continue;
+      if(lw<1){
+        const nu=trueAnom(TWO_PI*lw,el.e)*dir;
+        strokeOrbit(el,alpha,vp,roll,nu);
+        if(opts.showSat) drawSat(el,nu,alpha,vp,0,roll);
+      }else{
+        strokeOrbit(el,alpha,vp,roll,null);
+        if(opts.showSat&&opts.fly){const per=dur*Math.pow(el.a/A,1.5);const M=(dir*TWO_PI*(tsec/per))%TWO_PI;drawSat(el,trueAnom(M,el.e),alpha,vp,0,roll);}
+      }
+    }
+  }
+  function drawFocus(vp,roll){
+    if(!focusEl.checked||exporting)return;
+    const p=project(vp,0,0,0,0,roll);ctx.save();ctx.strokeStyle='rgba(255,90,0,0.85)';ctx.lineWidth=1;const s=7;
+    ctx.beginPath();ctx.moveTo(p.x-s,p.y);ctx.lineTo(p.x+s,p.y);ctx.moveTo(p.x,p.y-s);ctx.lineTo(p.x,p.y+s);ctx.stroke();
+    ctx.beginPath();ctx.arc(p.x,p.y,3,0,TWO_PI);ctx.stroke();ctx.restore();
+  }
+
+  // ---- mission sequence ----
+  const SEQ_BASE={num:1,raans:29,apod:180,apos:78,sizespread:0,raanbias:0,incbias:0};
+  const _kf=(label,o,leg)=>({label,legPhases:leg||0,p:Object.assign({},SEQ_BASE,o)});
+  const SEQ_PRESETS={
+    // leg phase counts reflect where burns happen: many during apogee-raising, ~1 across the coast, a few circularising
+    "Earth Departure (LEO → TLI)":[_kf('LEO Parking',{ecc:0.01,incs:28.5},8),_kf('TLI Injection',{ecc:0.97,incs:47},0)],
+    "Lunar Arrival (TLI → orbit)":[_kf('TLI Injection',{ecc:0.97,incs:47},1),_kf('Lunar Capture',{ecc:0.40,incs:28,size:0.7},3),_kf('Lunar Orbit',{ecc:0.10,incs:18,size:0.42},0)],
+    "Full arc: LEO → Lunar":[_kf('LEO Parking',{ecc:0.01,incs:28.5},8),_kf('TLI Injection',{ecc:0.97,incs:47},1),_kf('Lunar Capture',{ecc:0.40,incs:28,size:0.7},3),_kf('Lunar Orbit',{ecc:0.10,incs:18,size:0.42},0)],
+  };
+  let keyframes=[], seqFrac=0;
+  function seqActive(){return seqModeEl.checked && keyframes.length>=2;}
+  function seqDisplay(){return $('seqlayer').checked?'layered':'animated';}
+  function seqCycle(){return keyframes.length*(parseFloat($('seqdwell').value)+parseFloat($('seqtrans').value));}
+  function seqParamsAtFrac(f){
+    const n=keyframes.length, dwell=parseFloat($('seqdwell').value), trans=parseFloat($('seqtrans').value);
+    let t=(((f%1)+1)%1)*n*(dwell+trans);
+    for(let i=0;i<n;i++){
+      if(t<dwell) return keyframes[i].p;
+      t-=dwell;
+      if(t<trans) return lerpParams(keyframes[i].p, keyframes[(i+1)%n].p, t/trans);
+      t-=trans;
+    }
+    return keyframes[n-1].p;
+  }
+  // milestones + per-leg interpolated orbits (each keyframe's legPhases = orbits on the leg leaving it)
+  function expandedKeyframes(){
+    if(keyframes.length<2) return keyframes.map(k=>k.p);
+    const out=[];
+    for(let i=0;i<keyframes.length-1;i++){
+      const a=keyframes[i].p, b=keyframes[i+1].p;
+      const ph=Math.max(0,Math.round(keyframes[i].legPhases||0)), steps=ph+1;
+      for(let s=0;s<steps;s++) out.push(lerpParams(a,b,s/steps));
+    }
+    out.push(keyframes[keyframes.length-1].p);
+    return out;
+  }
+  function currentLayers(){
+    if(seqActive()){
+      if(seqDisplay()==='layered'){const ps=expandedKeyframes(),n=ps.length;return ps.map((p,i)=>({p,alpha:1-0.72*(n>1?i/(n-1):0)}));}
+      return [{p:seqParamsAtFrac(seqFrac),alpha:1}];
+    }
+    return [{p:readParams(),alpha:1}];
+  }
+
   // draw one frame. wallO!=null forces a specific reveal progress (used by GIF export).
   function drawScene(now,wallO){
     if(wallO==null && !startT)startT=now;
-    const dur=parseFloat(durEl.value),N=parseInt(numEl.value,10);
+    const dur=parseFloat(durEl.value);
     const roll=parseFloat(rollEl.value)*D2R;
+    BODY=parseFloat(bodysizeEl.value);
+    const dir=retroEl.checked?-1:1;                 // retrograde flips travel direction
     const vp=viewParams();vp.psi=parseFloat(psiEl.value)*D2R;
-    if(!exporting)markBox=markBounds(vp,roll);
     const tsec=wallO!=null?wallO*dur:(now-startT)/1000;
-    const wall=Math.min(wallO!=null?wallO:tsec/dur,1);
 
     ctx.setTransform(DPR,0,0,DPR,0,0);
+
+    if(seqActive()){
+      if(seqDisplay()==='animated')
+        seqFrac = wallO!=null ? wallO : (seqCycle()>0 ? ((now-startT)/1000)/seqCycle() : 0);
+      background(wallO!=null?tsec*1000:now);
+      drawBody(vp,0,roll);
+      const layers=currentLayers();
+      for(const L of layers) drawConstellation(L.p,L.alpha,vp,roll,{reveal:1});
+      if(!exporting)markBox=markBounds(vp,roll,layers[0].p);
+      drawFocus(vp,roll);vignette();drawWordmark();drawGuides();
+      return 1;
+    }
+
+    const wall=Math.min(wallO!=null?wallO:tsec/dur,1);
+    const P=readParams();
+    if(!exporting)markBox=markBounds(vp,roll,P);
     background(wallO!=null?tsec*1000:now);
     drawBody(vp,0,roll);
-
-    for(let k=0;k<N;k++){
-      const el=elements(k,N);
-      const lw=orbitWall(wall,k,N);
-      if(lw<=0)continue;
-      if(lw<1){
-        const nu=trueAnom(TWO_PI*lw,el.e);
-        strokeOrbit(el,1,vp,roll,nu);
-        if(satEl.checked) drawSat(el,nu,1,vp,0,roll);
-      }else{
-        strokeOrbit(el,1,vp,roll,null);
-        if(satEl.checked&&flyEl.checked){
-          const M=(TWO_PI*(tsec/dur))%TWO_PI;
-          drawSat(el,trueAnom(M,el.e),1,vp,0,roll);
-        }
-      }
-    }
-    vignette();
-    drawWordmark();
-    drawGuides();
+    drawConstellation(P,1,vp,roll,{reveal:wall,showSat:satEl.checked,fly:flyEl.checked,tsec,dur,dir});
+    drawFocus(vp,roll);vignette();drawWordmark();drawGuides();
+    if(wall>=1&&loopEl.checked)startT=now;
     return wall;
   }
   function frame(now){
@@ -503,12 +605,12 @@
     return ar>=1 ? {tw:res, th:Math.round(res/ar)} : {tw:Math.round(res*ar), th:res};
   }
   function drawStatic(transparent){
+    BODY=parseFloat(bodysizeEl.value);
     const roll=parseFloat(rollEl.value)*D2R;
     const vp=viewParams();vp.psi=parseFloat(psiEl.value)*D2R;
     if(!transparent) fillBg();
     drawBody(vp,0,roll);
-    const N=parseInt(numEl.value,10);
-    for(let k=0;k<N;k++) strokeOrbit(elements(k,N),1,vp,roll,null);
+    for(const L of currentLayers()) drawConstellation(L.p,L.alpha,vp,roll,{reveal:1});
     drawWordmark();
   }
   function exportPNG(){
@@ -525,14 +627,16 @@
     download(data,'p78-orbit.png');
   }
   function exportSVG(){
+    BODY=parseFloat(bodysizeEl.value);
     const N=parseInt(numEl.value,10), roll=parseFloat(rollEl.value)*D2R, th=theme(), transparent=transparentEl.checked;
     const vp=viewParams(); vp.psi=parseFloat(psiEl.value)*D2R;
     const lwpx=(parseFloat(lwEl.value)*(H/620)).toFixed(2);
-    let groups='';
-    for(let k=0;k<N;k++){
-      let d='';for(const sp of orbitSubpaths(elements(k,N),vp,roll)) d+=`<path d="${sp}"/>`;
-      groups+=`<g id="orbit-${k+1}">${d}</g>`;
-    }
+    let content='';
+    currentLayers().forEach((L,li)=>{
+      const Nk=Math.max(1,Math.round(L.p.num));let groups='';
+      for(let k=0;k<Nk;k++){let d='';for(const sp of orbitSubpaths(elements(k,Nk,L.p),vp,roll)) d+=`<path d="${sp}"/>`;groups+=`<g id="l${li+1}-orbit-${k+1}">${d}</g>`;}
+      content+=`<g id="layer-${li+1}" opacity="${L.alpha.toFixed(3)}" fill="none" stroke="${lineHex()}" stroke-width="${lwpx}" stroke-linecap="round" stroke-linejoin="round">${groups}</g>`;
+    });
     let body='';
     if(bodyEl.checked&&!th.flat){const p=project(vp,0,0,0,0,roll);
       body=`<circle id="body" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="${(BODY*p.sf).toFixed(2)}" fill="#9a9a96"/>`;}
@@ -543,8 +647,7 @@
     const Wi=Math.round(W),Hi=Math.round(H),dm=exportDims();
     const bg=transparent?'':`<rect width="${Wi}" height="${Hi}" fill="${customBgEl.checked?bgcolorEl.value:th.bgBot}"/>`;
     const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Wi} ${Hi}" width="${dm.tw}" height="${dm.th}">`
-      +bg+`<g id="orbits" fill="none" stroke="${lineHex()}" stroke-width="${lwpx}" stroke-linecap="round" stroke-linejoin="round">${groups}</g>`
-      +body+wm+`</svg>`;
+      +bg+content+body+wm+`</svg>`;
     const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
     download(url,'p78-orbit.svg');setTimeout(()=>URL.revokeObjectURL(url),1500);
   }
@@ -606,6 +709,7 @@
     s.theme=themeKey;s.bg=bgcolorEl.value;s.line=linecolorEl.value;s.aspect=aspectEl.value;
     s.pan=[Math.round(panX),Math.round(panY)];s.zoom=+zoom.toFixed(3);
     s.wmp=[Math.round(wmX),Math.round(wmY)];s.wmi=wmInit?1:0;
+    s.seq={on:$('seqmode').checked?1:0,disp:$('seqlayer').checked?'layered':'animated',kf:keyframes};
     return s;
   }
   function setState(s){
@@ -620,6 +724,8 @@
     if(s.pan){panX=+s.pan[0];panY=+s.pan[1];}
     if(s.wmp){wmX=+s.wmp[0];wmY=+s.wmp[1];}
     if(s.wmi!=null)wmInit=!!s.wmi;
+    if(s.seq){keyframes=(s.seq.kf||[]).map(k=>({label:k.label,legPhases:k.legPhases||0,p:Object.assign({},k.p)}));renderKeyframes();
+      $('seqmode').checked=!!s.seq.on; if(s.seq.disp==='layered')$('seqlayer').checked=true; else $('seqanim').checked=true;}
     resize();restart();
   }
   const enc=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o))));
@@ -627,11 +733,35 @@
   function shareURL(){return location.origin+location.pathname+'#p='+enc(getState());}
   function loadFromHash(){try{const m=location.hash.match(/p=([^&]+)/);if(m){setState(dec(m[1]));return true;}}catch(e){}return false;}
 
+  // built-in presets (range values; unspecified params keep current styling)
+  const BUILTIN_GROUPS=[
+    ["Earth-Moon Transfer",{
+      "Transfer Orbit":     {num:2, ecc:0.97,incs:52,raans:29,apod:180,apos:78,sizespread:0.2},
+      "TLI Departure":      {num:29,ecc:0.97,incs:64,  raans:29,apod:180,apos:78,sizespread:0.5},
+      "Lunar Orbit":        {num:29,ecc:0.17,incs:18,  raans:29,apod:180,apos:78,sizespread:0.5},
+    }],
+    ["Presets",{
+      "TLI State":     {num:29,ecc:0.97,incs:47,  raans:29,apod:180,apos:78,sizespread:0},
+      "Lunar Stack":   {num:7, ecc:0.97,incs:29,  raans:7, apod:180,apos:78,sizespread:0},
+      "Matariki":      {num:7, ecc:0.29,incs:7,   raans:29,apod:180,apos:78,sizespread:0},
+      "HTP-90":        {num:90,ecc:0.90,incs:39,  raans:90,apod:180,apos:78,sizespread:0},
+      "HTP-98":        {num:98,ecc:0.98,incs:39,  raans:98,apod:180,apos:78,sizespread:0},
+      "Cislunar Gate": {num:5, ecc:0.78,incs:28.5,raans:29,apod:90, apos:78,sizespread:0.5},
+    }],
+  ];
+  const BUILTIN=Object.assign({},...BUILTIN_GROUPS.map(g=>g[1]));
   const PKEY='p78-presets';
+  const esc=s=>s.replace(/[<>&"]/g,'');
   function loadPresets(){try{return JSON.parse(localStorage.getItem(PKEY)||'{}');}catch(e){return {};}}
   function savePresets(o){localStorage.setItem(PKEY,JSON.stringify(o));}
-  function refreshPresetList(){const o=loadPresets();
-    $('psel').innerHTML='<option value="">— load preset —</option>'+Object.keys(o).map(n=>`<option>${n.replace(/</g,'')}</option>`).join('');}
+  function refreshPresetList(){
+    let html='<option value="">— load preset —</option>';
+    for(const [label,grp] of BUILTIN_GROUPS)
+      html+=`<optgroup label="${label}">`+Object.keys(grp).map(n=>`<option value="b:${esc(n)}">${esc(n)}</option>`).join('')+'</optgroup>';
+    const keys=Object.keys(loadPresets());
+    if(keys.length)html+='<optgroup label="Saved">'+keys.map(n=>`<option value="u:${esc(n)}">${esc(n)}</option>`).join('')+'</optgroup>';
+    $('psel').innerHTML=html;
+  }
 
   // ---------- UI wiring ----------
   function updateThemeBtn(){$('theme').textContent="Theme: "+THEMES[themeKey].label;}
@@ -689,13 +819,44 @@
   $('exportgif').onclick=exportGIF;
   $('exportvid').onclick=exportVideo;
 
-  $('psave').onclick=()=>{const n=$('pname').value.trim();if(!n)return;const o=loadPresets();o[n]=getState();savePresets(o);refreshPresetList();$('psel').value=n;};
-  $('psel').onchange=()=>{const n=$('psel').value;if(n){const o=loadPresets();if(o[n])setState(o[n]);}};
-  $('pdel').onclick=()=>{const n=$('psel').value;if(!n)return;const o=loadPresets();delete o[n];savePresets(o);refreshPresetList();};
+  $('psave').onclick=()=>{const n=$('pname').value.trim();if(!n)return;const o=loadPresets();o[n]=getState();savePresets(o);refreshPresetList();$('psel').value='u:'+n;};
+  $('psel').onchange=()=>{const v=$('psel').value;if(!v)return;
+    if(v.startsWith('b:')){const p=BUILTIN[v.slice(2)];if(p)setState({r:p});}
+    else if(v.startsWith('u:')){const s=loadPresets()[v.slice(2)];if(s)setState(s);}};
+  $('pdel').onclick=()=>{const v=$('psel').value;if(!v.startsWith('u:'))return;const o=loadPresets();delete o[v.slice(2)];savePresets(o);refreshPresetList();};
   $('copylink').onclick=()=>{const u=shareURL();history.replaceState(null,'',u);
     const done=()=>{const b=$('copylink');const t=b.textContent;b.textContent='✓ Copied';setTimeout(()=>b.textContent=t,1200);};
     if(navigator.clipboard)navigator.clipboard.writeText(u).then(done).catch(()=>window.prompt('Copy link:',u));
     else window.prompt('Copy link:',u);};
+
+  // ---- mission sequence wiring ----
+  const seqModeEl=$('seqmode');
+  function renderKeyframes(){
+    const list=$('kf-list');list.innerHTML='';
+    keyframes.forEach((kfm,i)=>{
+      const row=document.createElement('div');row.className='row';
+      const lab=document.createElement('input');lab.type='text';lab.value=kfm.label;lab.style.flex='1';lab.style.minWidth='60px';
+      lab.oninput=()=>{kfm.label=lab.value;};
+      row.append(lab);
+      if(i<keyframes.length-1){   // phases drawn on the leg leaving this keyframe
+        const ph=document.createElement('input');ph.type='number';ph.className='num';ph.style.width='46px';
+        ph.min=0;ph.max=24;ph.step=1;ph.value=kfm.legPhases||0;ph.title='orbits drawn on the leg to the next keyframe';
+        ph.oninput=()=>{kfm.legPhases=parseInt(ph.value,10)||0;};
+        row.append(ph);
+      }
+      const load=document.createElement('button');load.textContent='Load';load.title='Load into sliders';load.onclick=()=>loadParams(kfm.p);
+      const cap=document.createElement('button');cap.textContent='Capture';cap.title='Overwrite from sliders';cap.onclick=()=>{kfm.p=readParams();};
+      const del=document.createElement('button');del.textContent='✕';del.onclick=()=>{keyframes.splice(i,1);renderKeyframes();};
+      row.append(load,cap,del);list.appendChild(row);
+    });
+  }
+  function loadSeqPreset(name){const s=SEQ_PRESETS[name];if(!s)return;keyframes=s.map(k=>({label:k.label,p:Object.assign({},k.p)}));renderKeyframes();}
+  $('seqpreset').innerHTML='<option value="">— pick —</option>'+Object.keys(SEQ_PRESETS).map(n=>`<option>${n}</option>`).join('');
+  $('seqpreset').onchange=()=>{const n=$('seqpreset').value;if(n){loadSeqPreset(n);seqModeEl.checked=true;restart();}};
+  seqModeEl.onchange=()=>{if(seqModeEl.checked&&keyframes.length<2)loadSeqPreset('Full arc: LEO → Lunar');restart();};
+  $('seqanim').onchange=()=>restart();$('seqlayer').onchange=()=>restart();
+  $('kf-add').onclick=()=>{if(keyframes.length>=8)return;keyframes.push({label:'KF '+(keyframes.length+1),legPhases:4,p:readParams()});renderKeyframes();};
+  renderKeyframes();
 
   const recBtn=$('rec'),recExit=$('rec-exit');
   const toggleRec=on=>{document.body.classList.toggle('rec',on);requestAnimationFrame(resize);};
