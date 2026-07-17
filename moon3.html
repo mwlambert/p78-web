@@ -130,7 +130,7 @@
       <label class="mini col">Moon <input type="color" id="cMoon" value="#B9C2D0"></label>
       <label class="mini col">Earth <input type="color" id="cEarth" value="#5C8CFF"></label>
       <label class="mini col">Moon orbit <input type="color" id="cRef" value="#454b58"></label>
-      <label class="mini col">Background <input type="color" id="cBg" value="#07080c"></label>
+      <label class="mini col">Background <input type="color" id="cBg" value="#04050a"></label>
     </div>
     <div class="row">
       <label class="mini">Line ×<span id="lwV">1.00</span> <input type="range" id="sLw" min="0.4" max="3" step="0.05" value="1" style="width:100px"></label>
@@ -252,11 +252,19 @@
       lc=keplerPos(r_llo,0,incL,0,0,TWO*coils*frac);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);}   // LLO coil (magnified)
     // ---- optional return: TEI (Moon → Earth) → apogee-lowering → LEO capture ----
     if(P.roundTrip){
-      var nuEnd=startNu+rate*(arrival+llo);                          // Moon's angle where the sat departs
-      var dRot=nuEnd-Math.PI, cR=Math.cos(dRot), sR=Math.sin(dRot);  // aim the return apogee at the Moon's departure point
-      var rot=function(p){return [p[0]*cR-p[1]*sR,p[0]*sR+p[1]*cR,p[2]];};
-      var rarcs=[{rp:r_leo,rap:apoTgt,M0:Math.PI,M1:TWO,dur:0.5*periodDays((r_leo+apoTgt)/2,muE)}]; // TEI: apogee→perigee
-      for(kk=Nr;kk>=1;kk--){ra=r_leo*Math.pow(apoTgt/r_leo,kk/(Nr+1));rarcs.push({rp:r_leo,rap:ra,M0:0,M1:TWO,dur:periodDays((r_leo+ra)/2,muE)});} // apogee-lowering
+      var exitPt=all[all.length-1];                                  // the actual last coil point
+      var apoR=Math.max(r_leo*4, Math.hypot(exitPt[0],exitPt[1],exitPt[2])); // TEI apogee radius = exit radius
+      // rotation mapping the canonical apogee (-x) onto the exit direction → TEI departs exactly from the coil end (no jump)
+      var vx=exitPt[0]/apoR, vy=exitPt[1]/apoR, vz=exitPt[2]/apoR;
+      var ax=0, ay=vz, az=-vy, cA=-vx, sA=Math.hypot(ax,ay,az);       // axis = (-1,0,0)×v ; cA = (-1,0,0)·v
+      var rot;
+      if(sA<1e-9){ rot = cA>0 ? function(p){return [p[0],p[1],p[2]];} : function(p){return [-p[0],-p[1],p[2]];}; }
+      else{ ax/=sA; ay/=sA; az/=sA;
+        rot=function(p){var d=ax*p[0]+ay*p[1]+az*p[2];
+          var kx=ay*p[2]-az*p[1], ky=az*p[0]-ax*p[2], kz=ax*p[1]-ay*p[0];
+          return [p[0]*cA+kx*sA+ax*d*(1-cA), p[1]*cA+ky*sA+ay*d*(1-cA), p[2]*cA+kz*sA+az*d*(1-cA)];}; }
+      var rarcs=[{rp:r_leo,rap:apoR,M0:Math.PI,M1:TWO,dur:0.5*periodDays((r_leo+apoR)/2,muE)}]; // TEI: apogee→perigee
+      for(kk=Nr;kk>=1;kk--){ra=r_leo*Math.pow(apoR/r_leo,kk/(Nr+1));rarcs.push({rp:r_leo,rap:ra,M0:0,M1:TWO,dur:periodDays((r_leo+ra)/2,muE)});} // apogee-lowering
       rarcs.push({rp:r_leo,rap:r_leo,M0:0,M1:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)});             // LEO capture laps
       var sumR=0,wr=[],gidx=arrival+llo,j2,Mv,pR;
       for(kk=0;kk<rarcs.length;kk++){wr[kk]=Math.sqrt(rarcs[kk].dur);sumR+=wr[kk];}
@@ -283,7 +291,7 @@
   function lastHead(){return traj.sat.length-1;}
 
   // ---- style ----
-  var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#07080c',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
+  var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#04050a',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
   function hexRGB(h){h=(h||'#000000').replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
     return parseInt(h.slice(0,2),16)+','+parseInt(h.slice(2,4),16)+','+parseInt(h.slice(4,6),16);}
 
@@ -305,14 +313,18 @@
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k){var im=bodyImg[which];
     if(im&&im.complete&&im.naturalWidth){var d=DIA[which]*k*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);}else dot(c,x,y,dotR,hex,blur);}
   function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);
-    var g=c.createRadialGradient(W/2,H*0.42,0,W/2,H*0.42,Math.max(W,H)*0.82);
-    g.addColorStop(0,'rgba(255,255,255,.03)');g.addColorStop(1,'rgba(0,0,0,.30)');c.fillStyle=g;c.fillRect(0,0,W,H);}
+    var g=c.createRadialGradient(W/2,H*0.42,0,W/2,H*0.42,Math.max(W,H)*0.85);
+    g.addColorStop(0,'rgba(255,255,255,.025)');g.addColorStop(1,'rgba(0,0,0,.42)');c.fillStyle=g;c.fillRect(0,0,W,H);}
+  var STARS=(function(){var a=[],seed=20240718,rnd=function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+    for(var i=0;i<240;i++)a.push([rnd(),rnd(),rnd()*1.0+0.3,rnd()*0.45+0.20]);return a;})();
+  function drawStars(c,W,H){var i,s,rr=Math.max(0.5,Math.min(W,H)/900);c.fillStyle='#c9d3e6';
+    for(i=0;i<STARS.length;i++){s=STARS[i];c.globalAlpha=s[3];c.beginPath();c.arc(s[0]*W,s[1]*H,s[2]*rr,0,7);c.fill();}c.globalAlpha=1;}
   function trailPaint(c,pts,head,rgb,k){var i,al;c.lineWidth=1.15*k*S.lw;c.lineJoin='round';c.lineCap='round';
     for(i=1;i<=head;i++){al=i>head-120?0.26+0.70*((i-(head-120))/120):0.26;
       c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}}
 
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H);if(!o.transparent)fillBg(c,W,H);
+    o=o||{};var k=skf(W,H);if(!o.transparent){fillBg(c,W,H);drawStars(c,W,H);}
     var pr=projector(W,H,phi),i,e;
     // Moon's orbit (reference) + Earth
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*k;c.beginPath();
@@ -338,7 +350,7 @@
     return {c:c,w:w,h:h};
   }
   var VIEW=document.getElementById('view');
-  function draw(head,phi){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:true});var f;
+  function draw(head,phi){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:false});var f;
     var pv=P.periodMul>1?' · sat period <span class="scale">×'+(+P.periodMul).toFixed(0)+'</span> (visual)':'';
     if(P.mode==='mission') f='LEO → TLI → LLO'+(P.roundTrip?' → TEI → LEO':' capture')+' · <b>patched-conic schematic</b> · LLO coil ×'+P.mag+pv+'.';
     else f=(P.primary==='moon'?'Satellite coils around the Moon as the Moon orbits Earth. ':'Satellite orbits Earth. ')
@@ -491,7 +503,7 @@
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){exNote.textContent='Link copied.';},function(){exNote.textContent='Copy failed — URL is in the address bar.';});
     else exNote.textContent='The tuned URL is in your address bar.';});
   document.getElementById('styleReset').addEventListener('click',function(){
-    S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#07080c',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
+    S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#04050a',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
     writeStyle();refreshStatic();updateHash();exNote.textContent='Style reset.';});
 
   // ---- init ----
