@@ -174,11 +174,12 @@
     }
   }
 
-  function drawGeo(head,years){
+  function drawGeo(head,phi){
     var g=setup(document.getElementById('geo')),c=g.c,W=g.w,H=g.h;
     var R=aMoon*1.16,cx=W/2,cy=H/2,sc=Math.min(W,H)*0.5/R*0.92;
-    var pts=[],k,y,p;
-    for(k=0;k<=head;k++){p=moonRel[k];y=p[1]*ct-p[2]*stt;pts.push([cx+p[0]*sc,cy-y*sc]);}
+    var cph=Math.cos(phi),sph=Math.sin(phi);       // slow camera yaw about the ecliptic pole
+    var pts=[],k,p,xr,yr,yv;
+    for(k=0;k<=head;k++){p=moonRel[k];xr=p[0]*cph-p[1]*sph;yr=p[0]*sph+p[1]*cph;yv=yr*ct-p[2]*stt;pts.push([cx+xr*sc,cy-yv*sc]);}
     // Earth
     c.fillStyle='#5C8CFF';c.shadowColor='#5C8CFF';c.shadowBlur=20;
     c.beginPath();c.arc(cx,cy,5,0,7);c.fill();c.shadowBlur=0;
@@ -209,9 +210,11 @@
   // ---- animation ----
   var yearsEl=document.getElementById('years'),exagEl=document.getElementById('exag'),playEl=document.getElementById('play');
   var playing=!reduce, t0=null, holdUntil=0, DRAW_MS=9000, HOLD_MS=1400;
+  var camPhi=0, CAM_AMP=0.38, CAM_W=2*Math.PI/22000;   // gentle yaw rock: ~22°, ~22 s period
   function maxHead(){return Math.max(2,Math.min(moonRel.length-1,Math.round(parseFloat(yearsEl.value)*samplesPerYear)));}
   function frame(now){
     if(t0===null)t0=now;
+    camPhi=CAM_AMP*Math.sin(now*CAM_W);
     var mh=maxHead(), exag=parseInt(exagEl.value,10);
     var elapsed=now-t0, head;
     if(now<holdUntil){head=mh;}
@@ -220,10 +223,10 @@
       if(frac>=1){head=mh;holdUntil=now+HOLD_MS;t0=now+HOLD_MS;}
       else head=Math.max(2,Math.round(frac*mh));
     }
-    drawGeo(head,0);drawHelio(head,0,exag);
+    drawGeo(head,camPhi);drawHelio(head,0,exag);
     if(playing)requestAnimationFrame(frame);
   }
-  function staticFull(){var mh=maxHead(),exag=parseInt(exagEl.value,10);drawGeo(mh,0);drawHelio(mh,0,exag);}
+  function staticFull(){var mh=maxHead(),exag=parseInt(exagEl.value,10);drawGeo(mh,camPhi);drawHelio(mh,0,exag);}
   function labels(){document.getElementById('yearsV').textContent=parseFloat(yearsEl.value).toFixed(1);
     document.getElementById('exagV').textContent=exagEl.value;}
   [yearsEl,exagEl].forEach(function(el){el.addEventListener('input',function(){labels();if(!playing)staticFull();});});
