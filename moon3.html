@@ -130,7 +130,7 @@
       <label class="mini col">Moon <input type="color" id="cMoon" value="#B9C2D0"></label>
       <label class="mini col">Earth <input type="color" id="cEarth" value="#5C8CFF"></label>
       <label class="mini col">Moon orbit <input type="color" id="cRef" value="#454b58"></label>
-      <label class="mini col">Background <input type="color" id="cBg" value="#04050a"></label>
+      <label class="mini col">Background <input type="color" id="cBg" value="#000000"></label>
     </div>
     <div class="row">
       <label class="mini">Line ×<span id="lwV">1.00</span> <input type="range" id="sLw" min="0.4" max="3" step="0.05" value="1" style="width:100px"></label>
@@ -291,7 +291,7 @@
   function lastHead(){return traj.sat.length-1;}
 
   // ---- style ----
-  var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#04050a',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
+  var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
   function hexRGB(h){h=(h||'#000000').replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
     return parseInt(h.slice(0,2),16)+','+parseInt(h.slice(2,4),16)+','+parseInt(h.slice(4,6),16);}
 
@@ -312,19 +312,28 @@
   function dot(c,x,y,r,hex,blur){c.fillStyle=hex;c.shadowColor=hex;c.shadowBlur=blur;c.beginPath();c.arc(x,y,r,0,7);c.fill();c.shadowBlur=0;}
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k){var im=bodyImg[which];
     if(im&&im.complete&&im.naturalWidth){var d=DIA[which]*k*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);}else dot(c,x,y,dotR,hex,blur);}
-  function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);
-    var g=c.createRadialGradient(W/2,H*0.42,0,W/2,H*0.42,Math.max(W,H)*0.85);
-    g.addColorStop(0,'rgba(255,255,255,.025)');g.addColorStop(1,'rgba(0,0,0,.42)');c.fillStyle=g;c.fillRect(0,0,W,H);}
+  function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);}
   var STARS=(function(){var a=[],seed=20240718,rnd=function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
-    for(var i=0;i<240;i++)a.push([rnd(),rnd(),rnd()*1.0+0.3,rnd()*0.45+0.20]);return a;})();
-  function drawStars(c,W,H){var i,s,rr=Math.max(0.5,Math.min(W,H)/900);c.fillStyle='#c9d3e6';
-    for(i=0;i<STARS.length;i++){s=STARS[i];c.globalAlpha=s[3];c.beginPath();c.arc(s[0]*W,s[1]*H,s[2]*rr,0,7);c.fill();}c.globalAlpha=1;}
+    for(var i=0;i<1200;i++){var u=rnd()*2-1,th=rnd()*TWO,r=Math.sqrt(1-u*u);         // uniform 3D unit direction
+      a.push([r*Math.cos(th),r*Math.sin(th),u,rnd()*0.9+0.4,rnd()*0.5+0.18]);}       // dir(x,y,z), size, alpha
+    return a;})();
+  function drawStars(c,W,H,phi){                       // celestial sphere → rotates with the camera (yaw+tilt), no parallax
+    var tl=S.tilt*DEG,ct=Math.cos(tl),st=Math.sin(tl),cph=Math.cos(phi),sph=Math.sin(phi);
+    var cx=W/2,cy=H/2,R=0.56*Math.hypot(W,H),rr=Math.max(0.4,Math.min(W,H)/1100),i,s,x,y,z,yv,zv;
+    c.fillStyle='#c9d3e6';
+    for(i=0;i<STARS.length;i++){s=STARS[i];
+      x=s[0]*cph-s[1]*sph; y=s[0]*sph+s[1]*cph; z=s[2];
+      yv=y*ct-z*st; zv=y*st+z*ct;
+      if(zv<0)continue;                                // draw the hemisphere facing the camera
+      c.globalAlpha=s[4]*Math.min(1,0.3+zv);
+      c.beginPath();c.arc(cx+x*R,cy-yv*R,s[3]*rr,0,7);c.fill();}
+    c.globalAlpha=1;}
   function trailPaint(c,pts,head,rgb,k){var i,al;c.lineWidth=1.15*k*S.lw;c.lineJoin='round';c.lineCap='round';
     for(i=1;i<=head;i++){al=i>head-120?0.26+0.70*((i-(head-120))/120):0.26;
       c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}}
 
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H);if(!o.transparent){fillBg(c,W,H);drawStars(c,W,H);}
+    o=o||{};var k=skf(W,H);if(!o.transparent){fillBg(c,W,H);drawStars(c,W,H,phi);}
     var pr=projector(W,H,phi),i,e;
     // Moon's orbit (reference) + Earth
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*k;c.beginPath();
@@ -503,7 +512,7 @@
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){exNote.textContent='Link copied.';},function(){exNote.textContent='Copy failed — URL is in the address bar.';});
     else exNote.textContent='The tuned URL is in your address bar.';});
   document.getElementById('styleReset').addEventListener('click',function(){
-    S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#04050a',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
+    S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
     writeStyle();refreshStatic();updateHash();exNote.textContent='Style reset.';});
 
   // ---- init ----
