@@ -92,6 +92,7 @@
         <select class="sel" id="preset">
           <option value="llo">Low Lunar Orbit (LLO) — the coil</option>
           <option value="leo">Low Earth Orbit (LEO)</option>
+          <option value="mission">Mission — LEO → TLI → LLO</option>
         </select>
       </div>
       <div class="ctl" style="min-width:150px">
@@ -108,6 +109,11 @@
       <div class="ctl"><label>Inclination <span class="val"><span id="incV">90</span>°</span></label><input type="range" id="inc" min="0" max="90" step="1" value="90"></div>
       <div class="ctl"><label>Orbit magnify <span class="val">×<span id="magV">22</span></span></label><input type="range" id="mag" min="1" max="60" step="1" value="22"></div>
       <div class="ctl"><label>Time span <span class="val"><span id="spanV">8.0</span> d</span></label><input type="range" id="span" min="0.2" max="27.3" step="0.1" value="8"></div>
+    </div>
+    <div class="row" id="missionRow">
+      <div class="ctl"><label>Raising steps <span class="val" id="raiseV">3</span></label><input type="range" id="raise" min="1" max="6" step="1" value="3"></div>
+      <div class="ctl"><label>LLO laps <span class="val" id="lloLapsV">6</span></label><input type="range" id="lloLaps" min="1" max="12" step="1" value="6"></div>
+      <div class="ctl" style="justify-content:flex-end"><label style="opacity:.6">Mission mode · magnify = LLO coil</label></div>
     </div>
     <div class="row">
       <label class="mini chk"><input type="checkbox" id="showMoonOrbit" checked> Show Moon's orbit</label>
@@ -164,7 +170,7 @@
   <main class="viewport">
     <div class="panel">
       <div class="phead"><h2 id="sceneTitle">Low Lunar Orbit</h2><span class="frametag">drag to rotate · scroll to zoom · dbl-click resets view</span></div>
-      <canvas class="stage" id="view" width="1080" height="820"></canvas>
+      <canvas class="stage" id="view" width="1080" height="1000"></canvas>
       <div class="pfoot" id="foot"></div>
     </div>
     <div class="legend">
@@ -198,12 +204,12 @@
   function periodDays(a,mu){return TWO*Math.sqrt(a*a*a/mu)/DAY;}
 
   // ---- params + trajectory ----
-  var P={primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,samples:6000,showMoon:true};
+  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,lloLaps:6,lloAlt:100,lloInc:90,showMoon:true};
   var traj={moon:[],sat:[],prim:[]}, satPeriod=0, satA=0;
-  function compute(){
+  function computeOrbit(){
     var prim=P.primary, R=(prim==='moon'?R_M:R_E), mu=(prim==='moon'?muM:muE);
     satA=R+P.alt; satPeriod=periodDays(satA,mu);
-    var N=P.samples, i,t,mp,pp,sr;
+    var N=6000, i,t,mp,pp,sr;
     traj.moon=[];traj.sat=[];traj.prim=[];
     for(i=0;i<=N;i++){
       t=P.span*i/N;
@@ -213,6 +219,27 @@
       traj.moon.push(mp);traj.prim.push(pp);traj.sat.push([pp[0]+sr[0],pp[1]+sr[1],pp[2]+sr[2]]);
     }
   }
+  // patched-conic mission: LEO parking → apogee-raising ellipses → TLI transfer → LLO capture.
+  // All Earth-phase conics share perigee at +x; apogees on -x; the Moon is phased to arrive there.
+  function computeMission(){
+    var r_leo=R_E+P.alt, incT=P.inc*DEG, Nr=Math.max(1,Math.round(P.raise));
+    var target=aMoon*(1+eMoon), nLeo=2, i,steps,kk,ra;
+    function conic(rp,rap,nu){var a=(rp+rap)/2,e=(rap-rp)/(rap+rp);return keplerPos(a,e,incT,0,0,nu);}
+    var sat=[];
+    steps=Math.round(70*nLeo);for(i=0;i<steps;i++)sat.push(conic(r_leo,r_leo,TWO*nLeo*i/steps));   // parking laps
+    for(kk=1;kk<=Nr;kk++){ra=r_leo*Math.pow(target/r_leo,kk/(Nr+1));steps=240;                       // raising ellipses (full revs)
+      for(i=0;i<steps;i++)sat.push(conic(r_leo,ra,TWO*i/steps));}
+    steps=320;for(i=0;i<=steps;i++)sat.push(conic(r_leo,target,Math.PI*i/steps));                    // TLI: perigee → apogee
+    var arrival=sat.length-1;
+    var r_llo=R_M+P.lloAlt, incL=P.lloInc*DEG, nLlo=Math.max(1,Math.round(P.lloLaps)), lloMag=P.mag;
+    var llo=Math.round(70*nLlo), rate=Math.PI/arrival, moon=[],prim=[],all=[],nu,mp,lc,idx;
+    for(i=0;i<=arrival;i++){nu=rate*i;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(sat[i]);}
+    for(i=1;i<=llo;i++){idx=arrival+i;nu=rate*idx;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push(mp);
+      lc=keplerPos(r_llo,0,incL,0,0,TWO*nLlo*i/llo);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);}   // LLO coil (magnified)
+    traj.moon=moon;traj.prim=prim;traj.sat=all;
+  }
+  function compute(){if(P.mode==='mission')computeMission();else computeOrbit();}
+  function lastHead(){return traj.sat.length-1;}
 
   // ---- style ----
   var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#07080c',lw:1,glow:1,refop:0.55,tilt:64,drift:0.30};
@@ -225,7 +252,7 @@
     var SC=Math.min(W,H)*0.5/(aMoon*1.16)*zoom, cx=W/2, cy=H/2;
     return function(pt){var x=pt[0]*cph-pt[1]*sph,y=pt[0]*sph+pt[1]*cph,z=pt[2],yv=y*ct-z*st;return [cx+x*SC,cy-yv*SC];};
   }
-  function satPlot(i){var s=traj.sat[i],p=traj.prim[i],m=P.mag;return [p[0]+m*(s[0]-p[0]),p[1]+m*(s[1]-p[1]),p[2]+m*(s[2]-p[2])];}
+  function satPlot(i){if(P.mode==='mission')return traj.sat[i];var s=traj.sat[i],p=traj.prim[i],m=P.mag;return [p[0]+m*(s[0]-p[0]),p[1]+m*(s[1]-p[1]),p[2]+m*(s[2]-p[2])];}
 
   // ---- body art ----
   var bodyImg={sat:null,moon:null,earth:null}, bodyData={sat:null,moon:null,earth:null}, DIA={sat:26,moon:40,earth:56};
@@ -257,22 +284,22 @@
   }
 
   // ---- on-screen ----
-  function setup(cv){var dpr=Math.min(window.devicePixelRatio||1,2),w=cv.clientWidth||cv.width,h=w*(820/1080);
+  function setup(cv){var dpr=Math.min(window.devicePixelRatio||1,2),w=cv.clientWidth||cv.width,h=w*(1000/1080);
     cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.height=h+'px';var c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);return {c:c,w:w,h:h};}
   var VIEW=document.getElementById('view');
-  function draw(head,phi){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:true});
-    document.getElementById('foot').innerHTML=(P.primary==='moon'
-      ? 'Satellite coils around the Moon as the Moon orbits Earth. '
-      : 'Satellite orbits Earth. ')
-      +'Period '+(satPeriod*24).toFixed(2)+' h · orbit shown at <span class="scale">×'+P.mag+'</span>.';}
+  function draw(head,phi){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:true});var f;
+    if(P.mode==='mission') f='LEO → apogee-raising → TLI → LLO capture · <b>patched-conic schematic</b> · LLO coil at <span class="scale">×'+P.mag+'</span>.';
+    else f=(P.primary==='moon'?'Satellite coils around the Moon as the Moon orbits Earth. ':'Satellite orbits Earth. ')
+      +'Period '+(satPeriod*24).toFixed(2)+' h · orbit shown at <span class="scale">×'+P.mag+'</span>.';
+    document.getElementById('foot').innerHTML=f;}
 
   // ---- animation ----
   var playEl=document.getElementById('play'),playing=!reduce,t0=null,holdUntil=0,DRAW_MS=11000,HOLD_MS=1400,CAM_W=TWO/24000,camPhi=0,zoom=1,camYaw=0;
   function frame(now){if(t0===null)t0=now;camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
-    var mh=P.samples,elapsed=now-t0,head;
+    var mh=lastHead(),elapsed=now-t0,head;
     if(now<holdUntil)head=mh;else{var f=elapsed/DRAW_MS;if(f>=1){head=mh;holdUntil=now+HOLD_MS;t0=now+HOLD_MS;}else head=Math.max(2,Math.round(f*mh));}
     draw(head,camPhi);if(playing)requestAnimationFrame(frame);}
-  function staticFull(){draw(P.samples,camYaw);}
+  function staticFull(){draw(lastHead(),camYaw);}
   function refreshStatic(){if(!playing)staticFull();}
   playEl.addEventListener('click',function(){playing=!playing;playEl.textContent=playing?'Pause':'Play';
     playEl.setAttribute('aria-label',(playing?'Pause':'Play')+' animation');if(playing){t0=null;holdUntil=0;requestAnimationFrame(frame);}});
@@ -286,30 +313,36 @@
     camYaw+=dx*0.006;
     S.tilt=Math.max(0,Math.min(88,S.tilt-dy*0.25));
     var te=document.getElementById('sTilt');if(te)te.value=Math.round(S.tilt);setTxt('tiltV',Math.round(S.tilt));
-    if(!playing)draw(P.samples,camYaw);});
+    if(!playing)draw(lastHead(),camYaw);});
   VIEW.addEventListener('pointerup',function(){dragging=false;});
   VIEW.addEventListener('pointercancel',function(){dragging=false;});
-  VIEW.addEventListener('wheel',function(ev){ev.preventDefault();zoom=Math.max(0.3,Math.min(6,zoom*Math.exp(-ev.deltaY*0.0012)));if(!playing)draw(P.samples,camYaw);},{passive:false});
-  VIEW.addEventListener('dblclick',function(){zoom=1;camYaw=0;if(!playing)draw(P.samples,camYaw);});
+  VIEW.addEventListener('wheel',function(ev){ev.preventDefault();zoom=Math.max(0.3,Math.min(6,zoom*Math.exp(-ev.deltaY*0.0012)));if(!playing)draw(lastHead(),camYaw);},{passive:false});
+  VIEW.addEventListener('dblclick',function(){zoom=1;camYaw=0;if(!playing)draw(lastHead(),camYaw);});
 
   // ---- orbit controls ----
   var altEl=document.getElementById('alt'),eEl=document.getElementById('e'),incEl=document.getElementById('inc'),
       magEl=document.getElementById('mag'),spanEl=document.getElementById('span'),presetEl=document.getElementById('preset'),
-      showMoonEl=document.getElementById('showMoonOrbit'),primBtns=[].slice.call(document.querySelectorAll('.segbtn'));
+      showMoonEl=document.getElementById('showMoonOrbit'),raiseEl=document.getElementById('raise'),
+      lloLapsEl=document.getElementById('lloLaps'),primBtns=[].slice.call(document.querySelectorAll('.segbtn'));
   function orbLabels(){document.getElementById('altV').textContent=Math.round(P.alt);
     document.getElementById('eV').textContent=P.e.toFixed(2);document.getElementById('incV').textContent=Math.round(P.inc);
-    document.getElementById('magV').textContent=P.mag;document.getElementById('spanV').textContent=P.span.toFixed(1);}
-  function setPrimaryUI(){primBtns.forEach(function(b){b.classList.toggle('active',b.getAttribute('data-p')===P.primary);});
-    document.getElementById('sceneTitle').textContent=P.primary==='moon'?'Low Lunar Orbit':'Low Earth Orbit';}
+    document.getElementById('magV').textContent=P.mag;document.getElementById('spanV').textContent=P.span.toFixed(1);
+    document.getElementById('raiseV').textContent=Math.round(P.raise);document.getElementById('lloLapsV').textContent=Math.round(P.lloLaps);}
+  function updateTitle(){document.getElementById('sceneTitle').textContent=P.mode==='mission'?'Mission — LEO → TLI → LLO':(P.primary==='moon'?'Low Lunar Orbit':'Low Earth Orbit');}
+  function updateModeUI(){var mr=document.getElementById('missionRow');if(mr)mr.style.display=(P.mode==='mission')?'':'none';updateTitle();}
+  function setPrimaryUI(){primBtns.forEach(function(b){b.classList.toggle('active',b.getAttribute('data-p')===P.primary);});updateTitle();}
   function readOrbit(){P.alt=parseFloat(altEl.value);P.e=parseFloat(eEl.value);P.inc=parseFloat(incEl.value);
-    P.mag=parseInt(magEl.value,10);P.span=parseFloat(spanEl.value);P.showMoon=showMoonEl.checked;orbLabels();compute();refreshStatic();updateHash();}
-  function writeOrbit(){altEl.value=P.alt;eEl.value=P.e;incEl.value=P.inc;magEl.value=P.mag;spanEl.value=P.span;showMoonEl.checked=P.showMoon;setPrimaryUI();orbLabels();}
-  [altEl,eEl,incEl,magEl,spanEl].forEach(function(el){el.addEventListener('input',readOrbit);});
+    P.mag=parseInt(magEl.value,10);P.span=parseFloat(spanEl.value);P.raise=parseInt(raiseEl.value,10);P.lloLaps=parseInt(lloLapsEl.value,10);
+    P.showMoon=showMoonEl.checked;orbLabels();compute();refreshStatic();updateHash();}
+  function writeOrbit(){altEl.value=P.alt;eEl.value=P.e;incEl.value=P.inc;magEl.value=P.mag;spanEl.value=P.span;
+    raiseEl.value=P.raise;lloLapsEl.value=P.lloLaps;showMoonEl.checked=P.showMoon;setPrimaryUI();updateModeUI();orbLabels();}
+  [altEl,eEl,incEl,magEl,spanEl,raiseEl,lloLapsEl].forEach(function(el){el.addEventListener('input',readOrbit);});
   showMoonEl.addEventListener('change',readOrbit);
   primBtns.forEach(function(b){b.addEventListener('click',function(){P.primary=b.getAttribute('data-p');setPrimaryUI();compute();refreshStatic();updateHash();});});
   var PRESETS={
-    llo:{primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,showMoon:true},
-    leo:{primary:'earth',alt:420,e:0,inc:51.6,mag:10,span:2,showMoon:true}
+    llo:{mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,showMoon:true},
+    leo:{mode:'orbit',primary:'earth',alt:420,e:0,inc:51.6,mag:10,span:2,showMoon:true},
+    mission:{mode:'mission',primary:'earth',alt:420,e:0,inc:20,mag:8,span:8,raise:3,lloLaps:6,showMoon:true}
   };
   presetEl.addEventListener('change',function(){var pr=PRESETS[presetEl.value];if(!pr)return;
     for(var kk in pr)P[kk]=pr[kk];writeOrbit();compute();refreshStatic();updateHash();});
@@ -317,11 +350,11 @@
   // ---- exports ----
   var outwEl=document.getElementById('outw'),transpEl=document.getElementById('transp'),exNote=document.getElementById('exNote'),vmodeEl=document.getElementById('vmode');
   function outW(){return Math.max(400,Math.min(4000,parseInt(outwEl.value,10)||1600));}
-  function panelH(w){return Math.round(w*820/1080);}
+  function panelH(w){return Math.round(w*1000/1080);}
   function mkCanvas(w,h){var cv=document.createElement('canvas');cv.width=w;cv.height=h;return cv;}
   function download(blob,name){var u=URL.createObjectURL(blob),an=document.createElement('a');an.href=u;an.download=name;document.body.appendChild(an);an.click();setTimeout(function(){an.remove();URL.revokeObjectURL(u);},1500);}
   document.getElementById('pngBtn').addEventListener('click',function(){
-    var W=outW(),H=panelH(W),cv=mkCanvas(W,H);paint(cv.getContext('2d'),W,H,P.samples,camPhi,{transparent:transpEl.checked});
+    var W=outW(),H=panelH(W),cv=mkCanvas(W,H);paint(cv.getContext('2d'),W,H,lastHead(),camPhi,{transparent:transpEl.checked});
     cv.toBlob(function(b){download(b,'p78-orbit-'+P.primary+'.png');exNote.textContent='PNG exported.';},'image/png');});
 
   // SVG still
@@ -330,7 +363,7 @@
   function svgBody(which,x,y,k,fb){var url=bodyData[which];if(!url)return fb;var d=DIA[which]*k*bscale();
     return '<image href="'+url+'" xlink:href="'+url+'" x="'+rnd(x-d/2)+'" y="'+rnd(y-d/2)+'" width="'+rnd(d)+'" height="'+rnd(d)+'"/>';}
   document.getElementById('svgBtn').addEventListener('click',function(){
-    var W=outW(),H=panelH(W),k=skf(W,H),pr=projector(W,H,camPhi),head=P.samples,i,g='';
+    var W=outW(),H=panelH(W),k=skf(W,H),pr=projector(W,H,camPhi),head=lastHead(),i,g='';
     var std=rnd(Math.min(W,H)/260);
     var defs='<defs><filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="'+std+'" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
     var bg=transpEl.checked?'':'<rect width="'+W+'" height="'+H+'" fill="'+S.bg+'"/>';
@@ -352,7 +385,7 @@
   vidBtn.addEventListener('click',function(){
     if(recording)return;if(!window.MediaRecorder){exNote.textContent='Video recording not supported here.';return;}
     var mime=pickMime();if(!mime){exNote.textContent='No supported video codec.';return;}
-    var mode=vmodeEl.value,W=outW(),H=panelH(W),cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=P.samples;
+    var mode=vmodeEl.value,W=outW(),H=panelH(W),cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=lastHead();
     var LOOP_MS=12000,SEQ_MS=DRAW_MS+HOLD_MS+2400;
     var stream=cv.captureStream(60),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:14000000}),chunks=[];
     rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
@@ -388,7 +421,7 @@
   function writeStyle(){styleCtl.forEach(function(m){var el=document.getElementById(m[0]);if(el)el.value=S[m[1]];});syncStyleLabels();}
   function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))));}
   function dec(s){return JSON.parse(decodeURIComponent(escape(atob(s))));}
-  function getState(){return {S:S,P:{primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,showMoon:P.showMoon},preset:presetEl.value,bscale:parseFloat(document.getElementById('bscale').value)};}
+  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,lloLaps:P.lloLaps,showMoon:P.showMoon},preset:presetEl.value,bscale:parseFloat(document.getElementById('bscale').value)};}
   function updateHash(){try{history.replaceState(null,'','#s='+enc(getState()));}catch(e){}}
   function loadFromHash(){var m=(location.hash||'').match(/s=([^&]+)/);if(!m)return;
     try{var st=dec(m[1]);if(st.S)for(var a in st.S){if(S.hasOwnProperty(a))S[a]=st.S[a];}
