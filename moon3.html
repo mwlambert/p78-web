@@ -118,6 +118,7 @@
     </div>
     <div class="row">
       <label class="mini chk"><input type="checkbox" id="showMoonOrbit" checked> Show Moon's orbit</label>
+      <label class="mini chk"><input type="checkbox" id="showSats" checked> Other satellites</label>
       <div class="ctl" style="min-width:190px"><label>Animation <span class="val"><span id="animdurV">18</span> s</span></label><input type="range" id="animdur" min="3" max="60" step="1" value="18"></div>
       <button class="btn" id="play" aria-label="Pause animation">Pause</button>
     </div>
@@ -206,7 +207,7 @@
   function periodDays(a,mu){return TWO*Math.sqrt(a*a*a/mu)/DAY;}
 
   // ---- params + trajectory ----
-  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:18,roundTrip:false,lloAlt:100,lloInc:90,showMoon:true};
+  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:18,roundTrip:false,lloAlt:100,lloInc:90,showMoon:true,showSats:true};
   var traj={moon:[],sat:[],prim:[]}, satPeriod=0, satA=0;
   function computeOrbit(){
     var prim=P.primary, R=(prim==='moon'?R_M:R_E), mu=(prim==='moon'?muM:muE);
@@ -328,23 +329,35 @@
       c.globalAlpha=s[4]*Math.min(1,0.3+zv);
       c.beginPath();c.arc(cx+x*R,cy-yv*R,s[3]*rr,0,7);c.fill();}
     c.globalAlpha=1;}
-  function trailPaint(c,pts,head,rgb,k){var i,al;c.lineWidth=1.15*k*S.lw;c.lineJoin='round';c.lineCap='round';
-    for(i=1;i<=head;i++){al=i>head-120?0.26+0.70*((i-(head-120))/120):0.26;
-      c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}}
+  var NOW=0;
+  var AMBS=(function(){var a=[],seed=4242,rnd=function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};var i;
+    for(i=0;i<3;i++)a.push([0,0.05+rnd()*0.04,(rnd()*130-15)*DEG,rnd()*TWO,rnd()*TWO,(0.0004+rnd()*0.0006)*(rnd()<0.5?-1:1)]);  // Earth satellites
+    for(i=0;i<3;i++)a.push([1,0.028+rnd()*0.022,(rnd()*160)*DEG,rnd()*TWO,rnd()*TWO,(0.0007+rnd()*0.001)*(rnd()<0.5?-1:1)]);     // Moon satellites
+    return a;})();
+  // fading comet tail behind the head (wraps the loop seam), or the whole path when full
+  function trailPaint(c,pts,head,total,rgb,k,full){c.lineWidth=1.15*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
+    if(full){for(i=1;i<=total;i++){c.strokeStyle='rgba('+rgb+',0.5)';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
+    var TAIL=Math.max(40,Math.round(total*0.62)),j;
+    for(j=0;j<TAIL;j++){cur=((head-j)%total+total)%total;prev=((head-j-1)%total+total)%total;
+      al=1-j/TAIL;al=al*al*0.92;if(al<0.012)continue;
+      c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';c.beginPath();c.moveTo(pts[prev][0],pts[prev][1]);c.lineTo(pts[cur][0],pts[cur][1]);c.stroke();}}
 
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H);if(!o.transparent){fillBg(c,W,H);drawStars(c,W,H,phi);}
+    o=o||{};var k=skf(W,H),total=lastHead();if(!o.transparent){fillBg(c,W,H);drawStars(c,W,H,phi);}
     var pr=projector(W,H,phi),i,e;
-    // Moon's orbit (reference) + Earth
+    // Moon's orbit (full reference ring)
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*k;c.beginPath();
-      for(i=0;i<=head;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
+      for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
     var ep=pr([0,0,0]);bodyOrDot(c,ep[0],ep[1],'earth',5.5*k,S.earth,20*k*S.glow,k);
-    // satellite coil
-    var spts=[];for(i=0;i<=head;i++)spts.push(pr(satPlot(i)));
-    trailPaint(c,spts,head,hexRGB(S.sat),k);
-    // Moon body + satellite head
-    var mp=pr(traj.moon[head]);bodyOrDot(c,mp[0],mp[1],'moon',3.6*k,S.moon,10*k*S.glow,k);   // Moon body always shown
-    var sh=spts[head];bodyOrDot(c,sh[0],sh[1],'sat',2.6*k,S.sat,12*k*S.glow,k);
+    // satellite trail (fading tail while playing; whole path when paused / still export)
+    var spts=[];for(i=0;i<=total;i++)spts.push(pr(satPlot(i)));
+    trailPaint(c,spts,head,total,hexRGB(S.sat),k,o.full);
+    var mp=pr(traj.moon[head]);bodyOrDot(c,mp[0],mp[1],'moon',3.6*k,S.moon,10*k*S.glow,k);   // Moon body
+    // ambient satellites — little dots orbiting Earth & the Moon (no trails)
+    if(P.showSats){var j,A,bp,ang,uu,asp;for(j=0;j<AMBS.length;j++){A=AMBS[j];bp=A[0]===0?[0,0,0]:traj.moon[head];
+      ang=A[4]+A[5]*NOW;uu=keplerPos(A[1]*traj.rMax,0,A[2],A[3],0,ang);
+      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);dot(c,asp[0],asp[1],1.7*k,'#9fb2d4',5*k*S.glow);}}
+    var sh=spts[head];bodyOrDot(c,sh[0],sh[1],'sat',2.6*k,S.sat,12*k*S.glow,k);   // satellite head
   }
 
   // ---- on-screen ----
@@ -359,7 +372,7 @@
     return {c:c,w:w,h:h};
   }
   var VIEW=document.getElementById('view');
-  function draw(head,phi){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:false});var f;
+  function draw(head,phi,full){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:false,full:full});var f;
     var pv=P.periodMul>1?' · sat period <span class="scale">×'+(+P.periodMul).toFixed(0)+'</span> (visual)':'';
     if(P.mode==='mission') f='LEO → TLI → LLO'+(P.roundTrip?' → TEI → LEO':' capture')+' · <b>patched-conic schematic</b> · LLO coil ×'+P.mag+pv+'.';
     else f=(P.primary==='moon'?'Satellite coils around the Moon as the Moon orbits Earth. ':'Satellite orbits Earth. ')
@@ -369,11 +382,11 @@
   // ---- animation ----
   var playEl=document.getElementById('play'),playing=!reduce,t0=null,holdUntil=0,HOLD_MS=1600,CAM_W=TWO/24000,camPhi=0,zoom=1,camYaw=0;
   function drawMs(){return Math.max(2000,P.animDur*1000);}   // user-set animation duration
-  function frame(now){if(t0===null)t0=now;camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
-    var mh=lastHead(),elapsed=now-t0,head;
-    if(now<holdUntil)head=mh;else{var f=elapsed/drawMs();if(f>=1){head=mh;holdUntil=now+HOLD_MS;t0=now+HOLD_MS;}else head=Math.max(2,Math.round(f*mh));}
-    draw(head,camPhi);if(playing)requestAnimationFrame(frame);}
-  function staticFull(){draw(lastHead(),camYaw);}
+  function frame(now){if(t0===null)t0=now;NOW=now;camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
+    var total=lastHead(),ph=((now-t0)/drawMs())%1;if(ph<0)ph+=1;      // continuous loop
+    var head=Math.max(1,Math.min(total,Math.round(ph*total)));
+    draw(head,camPhi,false);if(playing)requestAnimationFrame(frame);}
+  function staticFull(){draw(lastHead(),camYaw,true);}
   function refreshStatic(){if(!playing)staticFull();}
   playEl.addEventListener('click',function(){playing=!playing;playEl.textContent=playing?'Pause':'Play';
     playEl.setAttribute('aria-label',(playing?'Pause':'Play')+' animation');if(playing){t0=null;holdUntil=0;requestAnimationFrame(frame);}});
@@ -387,16 +400,16 @@
     camYaw+=dx*0.006;
     S.tilt=Math.max(0,Math.min(88,S.tilt-dy*0.25));
     var te=document.getElementById('sTilt');if(te)te.value=Math.round(S.tilt);setTxt('tiltV',Math.round(S.tilt));
-    if(!playing)draw(lastHead(),camYaw);});
+    if(!playing)draw(lastHead(),camYaw,true);});
   VIEW.addEventListener('pointerup',function(){dragging=false;});
   VIEW.addEventListener('pointercancel',function(){dragging=false;});
-  VIEW.addEventListener('wheel',function(ev){ev.preventDefault();zoom=Math.max(0.3,Math.min(6,zoom*Math.exp(-ev.deltaY*0.0012)));if(!playing)draw(lastHead(),camYaw);},{passive:false});
-  VIEW.addEventListener('dblclick',function(){zoom=1;camYaw=0;if(!playing)draw(lastHead(),camYaw);});
+  VIEW.addEventListener('wheel',function(ev){ev.preventDefault();zoom=Math.max(0.3,Math.min(6,zoom*Math.exp(-ev.deltaY*0.0012)));if(!playing)draw(lastHead(),camYaw,true);},{passive:false});
+  VIEW.addEventListener('dblclick',function(){zoom=1;camYaw=0;if(!playing)draw(lastHead(),camYaw,true);});
 
   // ---- orbit controls ----
   var altEl=document.getElementById('alt'),eEl=document.getElementById('e'),incEl=document.getElementById('inc'),
       magEl=document.getElementById('mag'),spanEl=document.getElementById('span'),presetEl=document.getElementById('preset'),
-      showMoonEl=document.getElementById('showMoonOrbit'),raiseEl=document.getElementById('raise'),
+      showMoonEl=document.getElementById('showMoonOrbit'),showSatsEl=document.getElementById('showSats'),raiseEl=document.getElementById('raise'),
       coastEl=document.getElementById('coast'),pmulEl=document.getElementById('pmul'),animdurEl=document.getElementById('animdur'),
       roundTripEl=document.getElementById('roundTrip'),primBtns=[].slice.call(document.querySelectorAll('.segbtn'));
   function orbLabels(){document.getElementById('altV').textContent=Math.round(P.alt);
@@ -412,10 +425,11 @@
     P.mag=parseInt(magEl.value,10);P.span=parseFloat(spanEl.value);P.raise=parseInt(raiseEl.value,10);P.coast=parseFloat(coastEl.value);P.periodMul=parseFloat(pmulEl.value);
     P.roundTrip=roundTripEl.checked;P.showMoon=showMoonEl.checked;orbLabels();compute();refreshStatic();updateHash();}
   function writeOrbit(){altEl.value=P.alt;eEl.value=P.e;incEl.value=P.inc;magEl.value=P.mag;spanEl.value=P.span;
-    raiseEl.value=P.raise;coastEl.value=P.coast;pmulEl.value=P.periodMul;animdurEl.value=P.animDur;roundTripEl.checked=P.roundTrip;showMoonEl.checked=P.showMoon;setPrimaryUI();updateModeUI();orbLabels();}
+    raiseEl.value=P.raise;coastEl.value=P.coast;pmulEl.value=P.periodMul;animdurEl.value=P.animDur;roundTripEl.checked=P.roundTrip;showMoonEl.checked=P.showMoon;showSatsEl.checked=P.showSats;setPrimaryUI();updateModeUI();orbLabels();}
   animdurEl.addEventListener('input',function(){P.animDur=parseFloat(animdurEl.value);document.getElementById('animdurV').textContent=Math.round(P.animDur);updateHash();});
   [altEl,eEl,incEl,magEl,spanEl,raiseEl,coastEl,pmulEl].forEach(function(el){el.addEventListener('input',readOrbit);});
   showMoonEl.addEventListener('change',readOrbit);
+  showSatsEl.addEventListener('change',function(){P.showSats=showSatsEl.checked;refreshStatic();updateHash();});
   roundTripEl.addEventListener('change',readOrbit);
   primBtns.forEach(function(b){b.addEventListener('click',function(){P.primary=b.getAttribute('data-p');setPrimaryUI();compute();refreshStatic();updateHash();});});
   var PRESETS={
@@ -433,7 +447,7 @@
   function mkCanvas(w,h){var cv=document.createElement('canvas');cv.width=w;cv.height=h;return cv;}
   function download(blob,name){var u=URL.createObjectURL(blob),an=document.createElement('a');an.href=u;an.download=name;document.body.appendChild(an);an.click();setTimeout(function(){an.remove();URL.revokeObjectURL(u);},1500);}
   document.getElementById('pngBtn').addEventListener('click',function(){
-    var W=outW(),H=panelH(W),cv=mkCanvas(W,H);paint(cv.getContext('2d'),W,H,lastHead(),camPhi,{transparent:transpEl.checked});
+    var W=outW(),H=panelH(W),cv=mkCanvas(W,H);paint(cv.getContext('2d'),W,H,lastHead(),camPhi,{transparent:transpEl.checked,full:true});
     cv.toBlob(function(b){download(b,'p78-orbit-'+P.primary+'.png');exNote.textContent='PNG exported.';},'image/png');});
 
   // SVG still
@@ -473,7 +487,7 @@
     recording=true;vidBtn.textContent='Recording…';vidBtn.setAttribute('disabled','');
     exNote.textContent='Recording '+(mode==='loop'?'seamless loop (12 s)':'draw sequence')+'…';
     var t0r=null;
-    function tick(now){if(t0r===null){t0r=now;rec.start();}var t=now-t0r,done=false,head,phi;
+    function tick(now){if(t0r===null){t0r=now;rec.start();}NOW=now;var t=now-t0r,done=false,head,phi;
       if(mode==='loop'){phi=S.drift*Math.sin(TWO*(t/LOOP_MS));head=mh;if(t>=LOOP_MS)done=true;}
       else{phi=S.drift*Math.sin(now*CAM_W);head=t<D?Math.max(2,Math.round((t/D)*mh)):mh;if(t>=SEQ_MS)done=true;}
       paint(cx,W,H,head,phi,{transparent:false});if(done)rec.stop();else requestAnimationFrame(tick);}
@@ -500,7 +514,7 @@
   function writeStyle(){styleCtl.forEach(function(m){var el=document.getElementById(m[0]);if(el)el.value=S[m[1]];});syncStyleLabels();}
   function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))));}
   function dec(s){return JSON.parse(decodeURIComponent(escape(atob(s))));}
-  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,coast:P.coast,periodMul:P.periodMul,animDur:P.animDur,roundTrip:P.roundTrip,showMoon:P.showMoon},preset:presetEl.value,bscale:parseFloat(document.getElementById('bscale').value)};}
+  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,coast:P.coast,periodMul:P.periodMul,animDur:P.animDur,roundTrip:P.roundTrip,showMoon:P.showMoon,showSats:P.showSats},preset:presetEl.value,bscale:parseFloat(document.getElementById('bscale').value)};}
   function updateHash(){try{history.replaceState(null,'','#s='+enc(getState()));}catch(e){}}
   function loadFromHash(){var m=(location.hash||'').match(/s=([^&]+)/);if(!m)return;
     try{var st=dec(m[1]);if(st.S)for(var a in st.S){if(S.hasOwnProperty(a))S[a]=st.S[a];}
