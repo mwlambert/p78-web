@@ -224,6 +224,9 @@
     {id:'raanbias',group:'orbit',label:'RAAN spacing bias',min:-1,max:1,step:0.05,val:0},
     {id:'apod', group:'orbit',label:'Apogee direction',  min:0,max:360,step:1,   val:180},
     {id:'apos', group:'orbit',label:'Apogee spread',     min:0,max:720,step:1,   val:78},
+    {id:'baseinc',group:'orbit',label:'Base inclination',min:0,max:90, step:0.1, val:0},
+    {id:'apsrate',group:'orbit',label:'Apsidal precession °/lap',min:-15,max:15,step:0.05,val:0},
+    {id:'nodrate',group:'orbit',label:'Nodal regression °/lap',min:-15,max:15,step:0.05,val:0},
     {id:'sizespread',group:'orbit',label:'Size spread',  min:0,max:1,  step:0.02,val:0},
     {id:'dur',  group:'anim', label:'Reveal time',       min:1,max:20, step:0.5, val:3,   restart:true},
     {id:'stagger',group:'anim',label:'Reveal stagger',   min:0,max:1,  step:0.01,val:0},
@@ -329,7 +332,7 @@
     return 2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2),Math.sqrt(1-e)*Math.cos(E/2));}
 
   // orbit-element params that make up a config / keyframe
-  const ORBIT_PARAMS=['num','ecc','incs','raans','apod','apos','sizespread','raanbias','incbias'];
+  const ORBIT_PARAMS=['num','ecc','incs','raans','apod','apos','baseinc','apsrate','nodrate','sizespread','raanbias','incbias'];
   function readParams(){const p={};ORBIT_PARAMS.forEach(id=>p[id]=parseFloat($(id).value));return p;}
   function loadParams(p){ORBIT_PARAMS.forEach(id=>{if(p[id]!=null)setRange(id,p[id]);});}
   function lerpParams(a,b,u){const o={};ORBIT_PARAMS.forEach(id=>o[id]=a[id]+(b[id]-a[id])*u);
@@ -341,9 +344,9 @@
     return {
       a:   (P.size!=null?P.size:1)*A*(1+P.sizespread*(t-0.5)*1.2),
       e:   P.ecc,
-      inc: (ti*P.incs)*D2R,
-      Om:  ((tw-0.5)*P.raans)*D2R,
-      w:   (P.apod+u*P.apos)*D2R,
+      inc: ((P.baseinc||0)+ti*P.incs)*D2R,
+      Om:  ((tw-0.5)*P.raans + k*(P.nodrate||0))*D2R,
+      w:   (P.apod+u*P.apos + k*(P.apsrate||0))*D2R,
     };
   }
 
@@ -745,11 +748,12 @@
     //   "Lunar Orbit":    {num:29,ecc:0.17,incs:18,raans:29,apod:180,apos:78,sizespread:0.5},
     // }],
     ["Presets",{
-      "TLI Fan ★":     {num:29,ecc:0.97,incs:47,  raans:29,apod:180,apos:78,sizespread:0,raanbias:0,incbias:0.35},
-      "Moon around Earth":{num:29,ecc:0.055,incs:24,raans:340,apod:180,apos:8,sizespread:0,raanbias:0,incbias:0},
-      "LLO":  {num:29,ecc:0.03,incs:90,raans:360,apod:180,apos:4, sizespread:0,raanbias:0,incbias:0},   // low lunar orbit — near-circular polar coverage
-      "ELFO": {num:29,ecc:0.60,incs:57,raans:180,apod:180,apos:60,sizespread:0,raanbias:0,incbias:0.2}, // elliptical lunar frozen orbit — south-pole coverage
-      "NRHO": {num:29,ecc:0.90,incs:88,raans:40, apod:180,apos:30,sizespread:0,raanbias:0,incbias:0.3}, // near-rectilinear halo (Gateway-style) — high-e near-polar
+      "TLI Fan ★":     {num:29,ecc:0.97,incs:47,  raans:29,apod:180,apos:78,sizespread:0,raanbias:0,incbias:0.35,baseinc:0,apsrate:0,nodrate:0},
+      "Moon — Sidereal Year ☾":{num:13,ecc:0.055,baseinc:5.14,incs:0,raans:0,apod:180,apos:0,sizespread:0,raanbias:0,incbias:0,apsrate:3.0,nodrate:-1.4}, // real e/i + real per-lap precession; 1 sidereal year (true-to-scale → near-circle)
+      "Lunar Precession · tilt exaggerated ☾":{num:13,ecc:0.055,baseinc:35,incs:0,raans:0,apod:180,apos:0,sizespread:0,raanbias:0,incbias:0,apsrate:3.0,nodrate:-1.4}, // SAME as Sidereal Year (real e=0.055, real rates, 1 sidereal yr) — ONLY inclination exaggerated (5.14°→35°) so the real NODAL precession reads as a fan of tilted true-circular rings. Apsidal precession is present at its real rate but invisible on a circle. Raise Satellites for more years / a bolder fan.
+      "LLO":  {num:29,ecc:0.03,incs:90,raans:360,apod:180,apos:4, sizespread:0,raanbias:0,incbias:0,baseinc:0,apsrate:0,nodrate:0},   // low lunar orbit — near-circular polar coverage
+      "ELFO": {num:29,ecc:0.60,incs:57,raans:180,apod:180,apos:60,sizespread:0,raanbias:0,incbias:0.2,baseinc:0,apsrate:0,nodrate:0}, // elliptical lunar frozen orbit — south-pole coverage
+      "NRHO": {num:29,ecc:0.90,incs:88,raans:40, apod:180,apos:30,sizespread:0,raanbias:0,incbias:0.3,baseinc:0,apsrate:0,nodrate:0}, // near-rectilinear halo (Gateway-style) — high-e near-polar
       // less-relevant variants (kept for reference):
       // "Lunar Stack":   {num:7, ecc:0.97,incs:29,  raans:7, apod:180,apos:78,sizespread:0},
       // "Matariki":      {num:7, ecc:0.29,incs:7,   raans:29,apod:180,apos:78,sizespread:0},
