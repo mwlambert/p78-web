@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P78 — The Real Moon</title>
+<style>
+  :root{
+    --bg:#05060a; --panel:#0c0e14; --panel2:#10131b;
+    --ink:#E7E9E3; --muted:#7d838f; --faint:#454b58;
+    --line:#1c212b; --orange:#ff5500; --moon:#EAF1FF; --earth:#5C8CFF;
+    --mono:ui-monospace,"SF Mono",Menlo,"Cascadia Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;line-height:1.5;
+    background:
+      radial-gradient(80% 55% at 50% -8%, rgba(255,85,0,.07), transparent 60%),
+      var(--bg);}
+  .wrap{max-width:1200px;margin:0 auto;padding:44px 24px 72px}
+
+  header{margin-bottom:30px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--orange);margin:0 0 14px}
+  h1{font-size:clamp(28px,4.6vw,52px);line-height:1.02;margin:0 0 16px;font-weight:650;
+    letter-spacing:-.02em;text-wrap:balance;max-width:16ch}
+  .lede{max-width:62ch;color:var(--muted);font-size:16px;margin:0}
+  .lede b{color:var(--ink);font-weight:600}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:30px 0 20px}
+  @media(max-width:800px){.grid{grid-template-columns:1fr}}
+  .panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));
+    border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .phead{display:flex;justify-content:space-between;align-items:baseline;
+    padding:15px 18px 11px;border-bottom:1px solid var(--line)}
+  .phead h2{font-size:14.5px;margin:0;font-weight:600;letter-spacing:.005em}
+  .frametag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  canvas{display:block;width:100%;height:auto}
+  .pfoot{padding:12px 18px 16px;font-size:12.5px;color:var(--muted);min-height:18px}
+  .pfoot b{color:var(--ink);font-weight:600}
+  .scale{font-family:var(--mono);color:var(--orange)}
+
+  .barrow{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:20px;
+    border-top:1px solid var(--line);padding-top:22px;margin-top:8px}
+  .controls{display:flex;flex-wrap:wrap;gap:24px 34px;align-items:flex-end}
+  .ctl{display:flex;flex-direction:column;gap:6px;min-width:170px}
+  .ctl label{font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--muted);display:flex;justify-content:space-between;gap:14px}
+  .ctl label .val{color:var(--ink);font-variant-numeric:tabular-nums}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:200px;max-width:44vw;height:3px;
+    border-radius:3px;background:var(--line);outline:none;cursor:pointer;margin:5px 0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+    background:var(--orange);border:2px solid var(--bg)}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--orange);border:2px solid var(--bg)}
+  input[type=range]:focus-visible{box-shadow:0 0 0 3px rgba(255,85,0,.35)}
+  .btn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:8px;
+    padding:9px 15px;cursor:pointer}
+  .btn:hover{border-color:var(--orange);color:var(--orange)}
+  .btn:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+
+  .legend{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;
+    color:var(--muted);margin-top:22px;letter-spacing:.04em}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .foot{margin-top:34px;font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.06em;
+    border-top:1px solid var(--line);padding-top:18px}
+  .foot b{color:var(--muted);font-weight:400}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">P78 · orbital mechanics, not illustration</p>
+    <h1>Two true pictures of one Moon</h1>
+    <p class="lede">Both panels are the <b>same live simulation</b> — a Newtonian integration of
+      Sun,&nbsp;Earth&nbsp;and&nbsp;Moon. No motion here is drawn by hand or dialled in: the
+      Moon's precession and its scalloped path through space <b>fall out of gravity alone</b>.
+      The only difference between them is which body you decide to hold still.</p>
+  </header>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="phead"><h2>Moon around Earth</h2><span class="frametag">Earth held still</span></div>
+      <canvas id="geo" width="1160" height="820"></canvas>
+      <div class="pfoot" id="geoFoot"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2>Moon around the Sun</h2><span class="frametag">Sun held still</span></div>
+      <canvas id="helio" width="1160" height="820"></canvas>
+      <div class="pfoot" id="helioFoot"></div>
+    </div>
+  </div>
+
+  <div class="barrow">
+    <div class="controls">
+      <div class="ctl">
+        <label>Years shown <span class="val"><span id="yearsV">4.0</span></span></label>
+        <input type="range" id="years" min="1" max="6" step="0.1" value="4">
+      </div>
+      <div class="ctl">
+        <label>Heliocentric zoom <span class="val">×<span id="exagV">72</span></span></label>
+        <input type="range" id="exag" min="20" max="200" step="1" value="72">
+      </div>
+    </div>
+    <button class="btn" id="play" aria-label="Pause animation">Pause</button>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--moon)"></i>Moon path</span>
+    <span><i class="dot" style="background:var(--earth)"></i>Earth</span>
+    <span><i class="dot" style="background:var(--orange)"></i>Sun</span>
+    <span><i class="dot" style="background:var(--faint)"></i>Earth's orbit</span>
+  </div>
+
+  <p class="foot">Sun + Earth + Moon · full Newtonian 3-body · velocity Verlet, dt&nbsp;=&nbsp;0.1&nbsp;d · e&nbsp;=&nbsp;0.055, i&nbsp;=&nbsp;5.14°
+    · <b>heliocentric distance magnified so the scallops read — a labelled diagram, not true scale</b></p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- N-body: AU, days, solar masses; G·M_sun = Gaussian k^2 ----
+  var G=2.9591220828e-4, mSun=1.0, mEarth=3.003e-6, mMoon=3.694e-8, mass=[mSun,mEarth,mMoon];
+  var AU_KM=149597870.7, aMoon=384400/AU_KM, incM=5.145*Math.PI/180;
+  var vEarth=2*Math.PI/365.25, eMoon=0.0549;
+  // start the Moon at perigee: correct perigee distance AND perigee speed (vis-viva, 2-body relative)
+  var rPeri=aMoon*(1-eMoon), muM=G*(mEarth+mMoon), vPeri=Math.sqrt(muM*(1+eMoon)/rPeri);
+  var r=[[0,0,0],[1,0,0],[1,rPeri*Math.cos(incM),rPeri*Math.sin(incM)]];
+  var v=[[0,0,0],[0,vEarth,0],[-vPeri,vEarth,0]];
+  (function(){var px=0,py=0,pz=0,i;for(i=1;i<3;i++){px+=mass[i]*v[i][0];py+=mass[i]*v[i][1];pz+=mass[i]*v[i][2];}
+    v[0]=[-px/mSun,-py/mSun,-pz/mSun];})();
+  function accel(r){var a=[[0,0,0],[0,0,0],[0,0,0]],i,j;
+    for(i=0;i<3;i++)for(j=0;j<3;j++){if(i===j)continue;
+      var dx=r[j][0]-r[i][0],dy=r[j][1]-r[i][1],dz=r[j][2]-r[i][2];
+      var d2=dx*dx+dy*dy+dz*dz,d=Math.sqrt(d2),f=G*mass[j]/(d2*d);
+      a[i][0]+=f*dx;a[i][1]+=f*dy;a[i][2]+=f*dz;}
+    return a;}
+  var dt=0.1,SAMP=2,TOT=Math.round(6.1*365.25/dt);
+  var moonRel=[],earthHel=[],a=accel(r),i,s;
+  function push(){moonRel.push([r[2][0]-r[1][0],r[2][1]-r[1][1],r[2][2]-r[1][2]]);
+    earthHel.push([r[1][0]-r[0][0],r[1][1]-r[0][1],r[1][2]-r[0][2]]);}
+  push();
+  for(s=0;s<TOT;s++){
+    for(i=0;i<3;i++){r[i][0]+=v[i][0]*dt+0.5*a[i][0]*dt*dt;r[i][1]+=v[i][1]*dt+0.5*a[i][1]*dt*dt;r[i][2]+=v[i][2]*dt+0.5*a[i][2]*dt*dt;}
+    var an=accel(r);
+    for(i=0;i<3;i++){v[i][0]+=0.5*(a[i][0]+an[i][0])*dt;v[i][1]+=0.5*(a[i][1]+an[i][1])*dt;v[i][2]+=0.5*(a[i][2]+an[i][2])*dt;}
+    a=an; if((s+1)%SAMP===0)push();
+  }
+  var samplesPerYear=365.25/(dt*SAMP);
+  var TILT=62*Math.PI/180, ct=Math.cos(TILT), stt=Math.sin(TILT);
+
+  // ---- canvas helpers ----
+  function setup(cv){
+    var dpr=Math.min(window.devicePixelRatio||1,2);
+    var w=cv.clientWidth||cv.width, h=w*(820/1160);
+    cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.height=h+'px';
+    var c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+    return {c:c,w:w,h:h};
+  }
+  function trail(c,pts,head,head0,rgb){
+    // dim persistent body + bright leading segment
+    var i,p0,p1,al;
+    c.lineWidth=1.15;c.lineJoin='round';
+    for(i=1;i<=head;i++){
+      p0=pts[i-1];p1=pts[i];
+      al = i>head-90 ? 0.30+0.68*((i-(head-90))/90) : 0.30;
+      c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';
+      c.beginPath();c.moveTo(p0[0],p0[1]);c.lineTo(p1[0],p1[1]);c.stroke();
+    }
+  }
+
+  function drawGeo(head,years){
+    var g=setup(document.getElementById('geo')),c=g.c,W=g.w,H=g.h;
+    var R=aMoon*1.16,cx=W/2,cy=H/2,sc=Math.min(W,H)*0.5/R*0.92;
+    var pts=[],k,y,p;
+    for(k=0;k<=head;k++){p=moonRel[k];y=p[1]*ct-p[2]*stt;pts.push([cx+p[0]*sc,cy-y*sc]);}
+    // Earth
+    c.fillStyle='#5C8CFF';c.shadowColor='#5C8CFF';c.shadowBlur=20;
+    c.beginPath();c.arc(cx,cy,5,0,7);c.fill();c.shadowBlur=0;
+    trail(c,pts,head,0,'234,241,255');
+    var ph=pts[head];
+    c.fillStyle='#EAF1FF';c.shadowColor='#EAF1FF';c.shadowBlur=12;
+    c.beginPath();c.arc(ph[0],ph[1],2.7,0,7);c.fill();c.shadowBlur=0;
+    document.getElementById('geoFoot').innerHTML='The orbit plane precesses — <b>real, and quiet.</b> Camera tilt is a viewing angle only.';
+  }
+  function drawHelio(head,years,exag){
+    var g=setup(document.getElementById('helio')),c=g.c,W=g.w,H=g.h;
+    var R=1.13,cx=W/2,cy=H/2,sc=Math.min(W,H)*0.5/R*0.94;
+    // Sun
+    c.fillStyle='#ff5500';c.shadowColor='#ff5500';c.shadowBlur=38;
+    c.beginPath();c.arc(cx,cy,7,0,7);c.fill();c.shadowBlur=0;
+    // Earth orbit reference up to head
+    var k,e;c.strokeStyle='rgba(69,75,88,.6)';c.lineWidth=1;c.beginPath();
+    for(k=0;k<=head;k++){e=earthHel[k];if(k===0)c.moveTo(cx+e[0]*sc,cy-e[1]*sc);else c.lineTo(cx+e[0]*sc,cy-e[1]*sc);}
+    c.stroke();
+    var pts=[];
+    for(k=0;k<=head;k++){e=earthHel[k];pts.push([cx+(e[0]+exag*moonRel[k][0])*sc, cy-(e[1]+exag*moonRel[k][1])*sc]);}
+    trail(c,pts,head,0,'234,241,255');
+    var eh=earthHel[head];
+    c.fillStyle='#5C8CFF';c.beginPath();c.arc(cx+eh[0]*sc,cy-eh[1]*sc,3.4,0,7);c.fill();
+    document.getElementById('helioFoot').innerHTML='Never loops back — the path always curves toward the Sun. Distance shown at <span class="scale">×'+exag+'</span>.';
+  }
+
+  // ---- animation ----
+  var yearsEl=document.getElementById('years'),exagEl=document.getElementById('exag'),playEl=document.getElementById('play');
+  var playing=!reduce, t0=null, holdUntil=0, DRAW_MS=9000, HOLD_MS=1400;
+  function maxHead(){return Math.max(2,Math.min(moonRel.length-1,Math.round(parseFloat(yearsEl.value)*samplesPerYear)));}
+  function frame(now){
+    if(t0===null)t0=now;
+    var mh=maxHead(), exag=parseInt(exagEl.value,10);
+    var elapsed=now-t0, head;
+    if(now<holdUntil){head=mh;}
+    else{
+      var frac=elapsed/DRAW_MS;
+      if(frac>=1){head=mh;holdUntil=now+HOLD_MS;t0=now+HOLD_MS;}
+      else head=Math.max(2,Math.round(frac*mh));
+    }
+    drawGeo(head,0);drawHelio(head,0,exag);
+    if(playing)requestAnimationFrame(frame);
+  }
+  function staticFull(){var mh=maxHead(),exag=parseInt(exagEl.value,10);drawGeo(mh,0);drawHelio(mh,0,exag);}
+  function labels(){document.getElementById('yearsV').textContent=parseFloat(yearsEl.value).toFixed(1);
+    document.getElementById('exagV').textContent=exagEl.value;}
+  [yearsEl,exagEl].forEach(function(el){el.addEventListener('input',function(){labels();if(!playing)staticFull();});});
+  playEl.addEventListener('click',function(){
+    playing=!playing;playEl.textContent=playing?'Pause':'Play';playEl.setAttribute('aria-label',(playing?'Pause':'Play')+' animation');
+    if(playing){t0=null;holdUntil=0;requestAnimationFrame(frame);}
+  });
+  window.addEventListener('resize',function(){if(!playing)staticFull();});
+  labels();
+  if(reduce){playEl.textContent='Play';staticFull();}
+  else requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
