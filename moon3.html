@@ -227,20 +227,22 @@
   function computeMission(){
     var r_leo=R_E+P.alt, incT=P.inc*DEG, Nr=Math.max(1,Math.round(P.raise));
     var target=aMoon*(1+eMoon), nLeo=2, kk, ra;
+    var r_llo=R_M+P.lloAlt, incL=P.lloInc*DEG, lloMag=P.mag;
+    var apoTgt=Math.max(r_leo*4, target-lloMag*r_llo);   // transfer arrives at the coil's near edge (not the Moon's centre) → flows into the coil
     // arcs sampled by equal MEAN anomaly (equal time) → correct Kepler speed (slow at apogee);
     // per-arc sample count ∝ sqrt(real duration) so the long transfer reads as the long, slow coast.
     var arcs=[{rp:r_leo,rap:r_leo,Msp:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)}];
-    for(kk=1;kk<=Nr;kk++){ra=r_leo*Math.pow(target/r_leo,kk/(Nr+1));arcs.push({rp:r_leo,rap:ra,Msp:TWO,dur:periodDays((r_leo+ra)/2,muE)});}
-    arcs.push({rp:r_leo,rap:target,Msp:Math.PI,dur:0.5*periodDays((r_leo+target)/2,muE)});
+    for(kk=1;kk<=Nr;kk++){ra=r_leo*Math.pow(apoTgt/r_leo,kk/(Nr+1));arcs.push({rp:r_leo,rap:ra,Msp:TWO,dur:periodDays((r_leo+ra)/2,muE)});}
+    arcs.push({rp:r_leo,rap:apoTgt,Msp:Math.PI,dur:0.5*periodDays((r_leo+apoTgt)/2,muE)});
     var sat=[],sumW=0,wk=[],j;
     for(kk=0;kk<arcs.length;kk++){wk[kk]=Math.sqrt(arcs[kk].dur);sumW+=wk[kk];}
     for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(50,Math.round(1500*wk[kk]/sumW)),
         am=(ar.rp+ar.rap)/2,ec=(ar.rap-ar.rp)/(ar.rap+ar.rp);
       for(j=0;j<st;j++)sat.push(keplerPos(am,ec,incT,0,0,trueAnom(ar.Msp*j/st,ec)));}
-    sat.push(keplerPos((r_leo+target)/2,(target-r_leo)/(target+r_leo),incT,0,0,Math.PI));   // exact apogee (patch point)
+    sat.push(keplerPos((r_leo+apoTgt)/2,(apoTgt-r_leo)/(apoTgt+r_leo),incT,0,0,Math.PI));   // exact apogee = coil near-edge
     var arrival=sat.length-1;
     var T_earth=0; for(kk=0;kk<arcs.length;kk++)T_earth+=arcs[kk].dur;
-    var r_llo=R_M+P.lloAlt, incL=P.lloInc*DEG, lloMag=P.mag, coast=Math.max(0.1,P.coast);
+    var coast=Math.max(0.1,P.coast);
     var T_llo=periodDays(r_llo,muM), coils=Math.max(1,coast*Tmoon/(T_llo*P.periodMul));      // visual coil count
     var earthSweep=TWO*T_earth/Tmoon, rate=earthSweep/arrival;                                // uniform Moon rate/sample → no jump
     var llo=Math.max(240,Math.min(16000,Math.round(coast*TWO/rate)));                         // LLO samples ∝ real coast duration
@@ -253,8 +255,8 @@
       var nuEnd=startNu+rate*(arrival+llo);                          // Moon's angle where the sat departs
       var dRot=nuEnd-Math.PI, cR=Math.cos(dRot), sR=Math.sin(dRot);  // aim the return apogee at the Moon's departure point
       var rot=function(p){return [p[0]*cR-p[1]*sR,p[0]*sR+p[1]*cR,p[2]];};
-      var rarcs=[{rp:r_leo,rap:target,M0:Math.PI,M1:TWO,dur:0.5*periodDays((r_leo+target)/2,muE)}]; // TEI: apogee→perigee
-      for(kk=Nr;kk>=1;kk--){ra=r_leo*Math.pow(target/r_leo,kk/(Nr+1));rarcs.push({rp:r_leo,rap:ra,M0:0,M1:TWO,dur:periodDays((r_leo+ra)/2,muE)});} // apogee-lowering
+      var rarcs=[{rp:r_leo,rap:apoTgt,M0:Math.PI,M1:TWO,dur:0.5*periodDays((r_leo+apoTgt)/2,muE)}]; // TEI: apogee→perigee
+      for(kk=Nr;kk>=1;kk--){ra=r_leo*Math.pow(apoTgt/r_leo,kk/(Nr+1));rarcs.push({rp:r_leo,rap:ra,M0:0,M1:TWO,dur:periodDays((r_leo+ra)/2,muE)});} // apogee-lowering
       rarcs.push({rp:r_leo,rap:r_leo,M0:0,M1:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)});             // LEO capture laps
       var sumR=0,wr=[],gidx=arrival+llo,j2,Mv,pR;
       for(kk=0;kk<rarcs.length;kk++){wr[kk]=Math.sqrt(rarcs[kk].dur);sumR+=wr[kk];}
