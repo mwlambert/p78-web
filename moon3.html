@@ -114,10 +114,10 @@
     <div class="row" id="missionRow">
       <div class="ctl"><label>Raising steps <span class="val" id="raiseV">3</span></label><input type="range" id="raise" min="1" max="6" step="1" value="3"></div>
       <div class="ctl"><label>Coast — Moon laps <span class="val" id="coastV">1.00</span></label><input type="range" id="coast" min="0.25" max="2" step="0.05" value="1"></div>
-      <div class="ctl" style="justify-content:flex-end"><label class="mini chk" style="text-transform:none"><input type="checkbox" id="roundTrip"> Return to LEO (round trip)</label></div>
+      <div class="ctl" style="justify-content:flex-end"><label class="mini chk" style="text-transform:none"><input type="checkbox" id="roundTrip" checked> Return to LEO (round trip)</label></div>
     </div>
     <div class="row">
-      <label class="mini chk"><input type="checkbox" id="showMoonOrbit" checked> Show Moon's orbit</label>
+      <label class="mini chk"><input type="checkbox" id="showMoonOrbit"> Show Moon's orbit</label>
       <label class="mini chk"><input type="checkbox" id="showSats" checked> Other satellites</label>
       <label class="mini chk"><input type="checkbox" id="showLag" checked> L1 / L2</label>
       <div class="ctl" style="min-width:190px"><label>Animation <span class="val"><span id="animdurV">18</span> s</span></label><input type="range" id="animdur" min="3" max="60" step="1" value="18"></div>
@@ -210,7 +210,7 @@
   function periodDays(a,mu){return TWO*Math.sqrt(a*a*a/mu)/DAY;}
 
   // ---- params + trajectory ----
-  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:18,roundTrip:false,lloAlt:100,lloInc:90,showMoon:true,showSats:true,showLag:true};
+  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:18,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:true};
   var traj={moon:[],sat:[],prim:[]}, satPeriod=0, satA=0;
   function computeOrbit(){
     var prim=P.primary, R=(prim==='moon'?R_M:R_E), mu=(prim==='moon'?muM:muE);
@@ -464,9 +464,9 @@
   roundTripEl.addEventListener('change',readOrbit);
   primBtns.forEach(function(b){b.addEventListener('click',function(){P.primary=b.getAttribute('data-p');setPrimaryUI();compute();refreshStatic();updateHash();});});
   var PRESETS={
-    llo:{mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,periodMul:12,showMoon:true},
-    leo:{mode:'orbit',primary:'earth',alt:420,e:0,inc:51.6,mag:10,span:2,periodMul:5,showMoon:true},
-    mission:{mode:'mission',primary:'earth',alt:420,e:0,inc:20,mag:8,span:8,raise:3,coast:1,periodMul:18,showMoon:true}
+    llo:{mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,periodMul:12},
+    leo:{mode:'orbit',primary:'earth',alt:420,e:0,inc:51.6,mag:10,span:2,periodMul:5},
+    mission:{mode:'mission',primary:'earth',alt:420,e:0,inc:20,mag:8,span:8,raise:3,coast:1,periodMul:18}
   };
   presetEl.addEventListener('change',function(){var pr=PRESETS[presetEl.value];if(!pr)return;
     for(var kk in pr)P[kk]=pr[kk];writeOrbit();compute();refreshStatic();updateHash();});
