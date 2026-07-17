@@ -226,21 +226,28 @@
   // All Earth-phase conics share perigee at +x; apogees on -x; the Moon is phased to arrive there.
   function computeMission(){
     var r_leo=R_E+P.alt, incT=P.inc*DEG, Nr=Math.max(1,Math.round(P.raise));
-    var target=aMoon*(1+eMoon), nLeo=2, i,steps,kk,ra;
-    function conic(rp,rap,nu){var a=(rp+rap)/2,e=(rap-rp)/(rap+rp);return keplerPos(a,e,incT,0,0,nu);}
-    var sat=[];
-    steps=Math.round(70*nLeo);for(i=0;i<steps;i++)sat.push(conic(r_leo,r_leo,TWO*nLeo*i/steps));   // parking laps
-    for(kk=1;kk<=Nr;kk++){ra=r_leo*Math.pow(target/r_leo,kk/(Nr+1));steps=240;                       // raising ellipses (full revs)
-      for(i=0;i<steps;i++)sat.push(conic(r_leo,ra,TWO*i/steps));}
-    steps=320;for(i=0;i<=steps;i++)sat.push(conic(r_leo,target,Math.PI*i/steps));                    // TLI: perigee → apogee
+    var target=aMoon*(1+eMoon), nLeo=2, kk, ra;
+    // arcs sampled by equal MEAN anomaly (equal time) → correct Kepler speed (slow at apogee);
+    // per-arc sample count ∝ sqrt(real duration) so the long transfer reads as the long, slow coast.
+    var arcs=[{rp:r_leo,rap:r_leo,Msp:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)}];
+    for(kk=1;kk<=Nr;kk++){ra=r_leo*Math.pow(target/r_leo,kk/(Nr+1));arcs.push({rp:r_leo,rap:ra,Msp:TWO,dur:periodDays((r_leo+ra)/2,muE)});}
+    arcs.push({rp:r_leo,rap:target,Msp:Math.PI,dur:0.5*periodDays((r_leo+target)/2,muE)});
+    var sat=[],sumW=0,wk=[],j;
+    for(kk=0;kk<arcs.length;kk++){wk[kk]=Math.sqrt(arcs[kk].dur);sumW+=wk[kk];}
+    for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(50,Math.round(1500*wk[kk]/sumW)),
+        am=(ar.rp+ar.rap)/2,ec=(ar.rap-ar.rp)/(ar.rap+ar.rp);
+      for(j=0;j<st;j++)sat.push(keplerPos(am,ec,incT,0,0,trueAnom(ar.Msp*j/st,ec)));}
+    sat.push(keplerPos((r_leo+target)/2,(target-r_leo)/(target+r_leo),incT,0,0,Math.PI));   // exact apogee (patch point)
     var arrival=sat.length-1;
-    var r_llo=R_M+P.lloAlt, incL=P.lloInc*DEG, lloMag=P.mag;
-    var T_llo=periodDays(r_llo,muM), coast=Math.max(0.1,P.coast);
-    var coils=Math.max(1,coast*Tmoon/(T_llo*P.periodMul)), moonSweep=coast*TWO;    // coil count (sat period ×periodMul, visual)
-    var llo=Math.min(16000,Math.round(coils*22)), rate=Math.PI/arrival, moon=[],prim=[],all=[],nu,mp,lc,frac;
-    for(i=0;i<=arrival;i++){nu=rate*i;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(sat[i]);}
-    for(i=1;i<=llo;i++){frac=i/llo;nu=Math.PI+moonSweep*frac;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push(mp);
-      lc=keplerPos(r_llo,0,incL,0,0,TWO*coils*frac);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);}   // LLO coil over the coast (magnified)
+    var T_earth=0; for(kk=0;kk<arcs.length;kk++)T_earth+=arcs[kk].dur;
+    var r_llo=R_M+P.lloAlt, incL=P.lloInc*DEG, lloMag=P.mag, coast=Math.max(0.1,P.coast);
+    var T_llo=periodDays(r_llo,muM), coils=Math.max(1,coast*Tmoon/(T_llo*P.periodMul));      // visual coil count
+    var earthSweep=TWO*T_earth/Tmoon, rate=earthSweep/arrival;                                // uniform Moon rate/sample → no jump
+    var llo=Math.max(240,Math.min(16000,Math.round(coast*TWO/rate)));                         // LLO samples ∝ real coast duration
+    var startNu=Math.PI-earthSweep, moon=[],prim=[],all=[],i,nu,mp,lc,frac,gi;
+    for(i=0;i<=arrival;i++){nu=startNu+rate*i;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(sat[i]);}
+    for(i=1;i<=llo;i++){gi=arrival+i;nu=startNu+rate*gi;frac=i/llo;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push(mp);
+      lc=keplerPos(r_llo,0,incL,0,0,TWO*coils*frac);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);}   // LLO coil (magnified)
     traj.moon=moon;traj.prim=prim;traj.sat=all;
   }
   function computeFraming(){                          // bounding sphere of what's drawn → auto-fit + centre
