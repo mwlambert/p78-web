@@ -322,7 +322,7 @@
     var spts=[];for(i=0;i<=head;i++)spts.push(pr(satPlot(i)));
     trailPaint(c,spts,head,hexRGB(S.sat),k);
     // Moon body + satellite head
-    if(P.showMoon){var mp=pr(traj.moon[head]);bodyOrDot(c,mp[0],mp[1],'moon',3.6*k,S.moon,10*k*S.glow,k);}
+    var mp=pr(traj.moon[head]);bodyOrDot(c,mp[0],mp[1],'moon',3.6*k,S.moon,10*k*S.glow,k);   // Moon body always shown
     var sh=spts[head];bodyOrDot(c,sh[0],sh[1],'sat',2.6*k,S.sat,12*k*S.glow,k);
   }
 
@@ -431,7 +431,7 @@
     var sp=[];for(i=0;i<=head;i++)sp.push(pr(satPlot(i)));var lo=Math.max(1,head-120);
     g+='<path d="'+poly(sp,0,head)+'" fill="none" stroke="'+S.sat+'" stroke-opacity=".30" stroke-width="'+rnd(1.15*k*S.lw)+'" stroke-linejoin="round"/>';
     g+='<path d="'+poly(sp,lo,head)+'" fill="none" stroke="'+S.sat+'" stroke-opacity=".92" stroke-width="'+rnd(1.15*k*S.lw)+'" stroke-linecap="round"/>';
-    if(P.showMoon){var mh=pr(traj.moon[head]);g+=svgBody('moon',mh[0],mh[1],k,'<circle cx="'+rnd(mh[0])+'" cy="'+rnd(mh[1])+'" r="'+rnd(3.6*k)+'" fill="'+S.moon+'"/>');}
+    var mh=pr(traj.moon[head]);g+=svgBody('moon',mh[0],mh[1],k,'<circle cx="'+rnd(mh[0])+'" cy="'+rnd(mh[1])+'" r="'+rnd(3.6*k)+'" fill="'+S.moon+'"/>');   // Moon body always shown
     var sh=sp[head];g+=svgBody('sat',sh[0],sh[1],k,'<circle cx="'+rnd(sh[0])+'" cy="'+rnd(sh[1])+'" r="'+rnd(2.6*k)+'" fill="'+S.sat+'" filter="url(#glow)"/>');
     var svg='<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+defs+bg+g+'</svg>';
     download(new Blob([svg],{type:'image/svg+xml'}),'p78-orbit-'+P.primary+'.svg');exNote.textContent='SVG exported.';});
