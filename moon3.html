@@ -355,9 +355,10 @@
   function trailPaint(c,pts,head,total,rgb,k,full,occ,env){env=env==null?1:env;c.lineWidth=1.15*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
     if(full){for(i=1;i<=total;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;c.strokeStyle='rgba('+rgb+',0.5)';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
     var TAIL=Math.max(40,Math.round(total*0.62)),j;
-    for(j=0;j<TAIL;j++){cur=head-j;prev=cur-1;if(prev<0)break;    // no wrap: the tail stays within the current loop (no previous-loop trail)
+    for(j=0;j<TAIL;j++){cur=((head-j)%total+total)%total;prev=((head-j-1)%total+total)%total;
+      if(Math.abs(cur-prev)!==1)continue;                 // skip only the wrap-seam connector (no straight line across the loop)
       if(occ&&(occ(pts[cur])||occ(pts[prev])))continue;
-      al=(1-j/TAIL);al=al*al*0.92*env;if(al<0.012)continue;
+      al=(1-j/TAIL);al=al*al*0.92*env;if(al<0.012)continue;   // age-based fade only
       c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';c.beginPath();c.moveTo(pts[prev][0],pts[prev][1]);c.lineTo(pts[cur][0],pts[cur][1]);c.stroke();}}
 
   function paint(c,W,H,head,phi,o){
@@ -414,8 +415,7 @@
   function frame(now){if(t0===null)t0=now;NOW=now;camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
     var total=lastHead(),ph=((now-t0)/drawMs())%1;if(ph<0)ph+=1;      // continuous loop
     var head=Math.max(1,Math.min(total,Math.round(ph*total)));
-    var F=0.05,env=1; if(ph<F)env=ph/F; else if(ph>1-F)env=(1-ph)/F;   // crossfade the loop seam (mask the head reset)
-    draw(head,camPhi,false,env);if(playing)requestAnimationFrame(frame);}
+    draw(head,camPhi,false);if(playing)requestAnimationFrame(frame);}   // no seam crossfade — tail fades by age only
   function staticFull(){draw(lastHead(),camYaw,true);}
   function refreshStatic(){if(!playing)staticFull();}
   playEl.addEventListener('click',function(){playing=!playing;playEl.textContent=playing?'Pause':'Play';
