@@ -66,6 +66,9 @@
   .sel{background:#0c0f15;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:8px 10px;font-family:var(--mono);font-size:11px}
   .vidgroup{display:inline-flex;gap:8px;align-items:center}
   .exnote{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.04em}
+  .mini.file input[type=file]{font-family:var(--mono);font-size:10.5px;color:var(--muted);max-width:158px}
+  .mini.file input[type=file]::-webkit-file-upload-button{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 9px;margin-right:8px;cursor:pointer}
+  .mini.file input[type=file]::file-selector-button{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 9px;margin-right:8px;cursor:pointer}
 
   .legend{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:22px;letter-spacing:.04em}
   .legend span{display:inline-flex;align-items:center;gap:7px}
@@ -111,6 +114,17 @@
     </div>
     <button class="btn" id="play" aria-label="Pause animation">Pause</button>
   </div>
+
+  <section class="export" aria-label="Bodies">
+    <div class="exhead">Bodies — custom art (SVG or PNG, replaces the dots)</div>
+    <div class="exrow">
+      <label class="mini file">Moon <input type="file" id="imgMoon" accept=".svg,image/svg+xml,image/png,image/*"></label>
+      <label class="mini file">Earth <input type="file" id="imgEarth" accept=".svg,image/svg+xml,image/png,image/*"></label>
+      <label class="mini file">Sun <input type="file" id="imgSun" accept=".svg,image/svg+xml,image/png,image/*"></label>
+      <label class="mini">Art size ×<span id="bscaleV">1.0</span> <input type="range" id="bscale" min="0.4" max="3" step="0.05" value="1" style="width:120px"></label>
+      <button class="btn" id="bReset">Reset</button>
+    </div>
+  </section>
 
   <section class="export" aria-label="Export">
     <div class="exhead">Export</div>
@@ -202,6 +216,14 @@
     c.fillStyle=g;c.fillRect(0,0,W,H);
   }
   function dot(c,x,y,r,fill,glow,blur){c.fillStyle=fill;c.shadowColor=glow;c.shadowBlur=blur;c.beginPath();c.arc(x,y,r,0,7);c.fill();c.shadowBlur=0;}
+  // optional designer-supplied body art (SVG/PNG) — falls back to the glowing dot
+  var bodyImg={moon:null,earth:null,sun:null}, bodyData={moon:null,earth:null,sun:null}, DIA={moon:34,earth:46,sun:100};
+  function bscale(){var el=document.getElementById('bscale');return el?(parseFloat(el.value)||1):1;}
+  function bodyOrDot(c,x,y,which,dotR,hex,blur,k){
+    var im=bodyImg[which];
+    if(im&&im.complete&&im.naturalWidth){var d=DIA[which]*k*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);}
+    else dot(c,x,y,dotR,hex,hex,blur);
+  }
   function trailPaint(c,pts,head,rgb,k){
     var i,p0,p1,al;c.lineWidth=1.15*k;c.lineJoin='round';c.lineCap='round';
     for(i=1;i<=head;i++){p0=pts[i-1];p1=pts[i];
@@ -212,18 +234,18 @@
   function paintGeo(c,W,H,head,phi,o){
     o=o||{};var k=skf(W,H);if(!o.transparent)fillBg(c,W,H);
     var Gp=geoPoints(W,H,head,phi);
-    dot(c,Gp.earth[0],Gp.earth[1],5*k,EARTH_HEX,EARTH_HEX,20*k);
+    bodyOrDot(c,Gp.earth[0],Gp.earth[1],'earth',5*k,EARTH_HEX,20*k,k);
     trailPaint(c,Gp.pts,head,MOON_RGB,k);
-    var ph=Gp.pts[head];dot(c,ph[0],ph[1],2.7*k,MOONHEAD_HEX,MOONHEAD_HEX,12*k);
+    var ph=Gp.pts[head];bodyOrDot(c,ph[0],ph[1],'moon',2.7*k,MOONHEAD_HEX,12*k,k);
   }
   function paintHelio(c,W,H,head,exag,o){
     o=o||{};var k=skf(W,H);if(!o.transparent)fillBg(c,W,H);
     var Hp=helioPoints(W,H,head,exag),j,e;
-    dot(c,Hp.sun[0],Hp.sun[1],7*k,SUN_HEX,SUN_HEX,38*k);
     c.strokeStyle='rgba('+REF_RGB+',.6)';c.lineWidth=1*k;c.beginPath();
     for(j=0;j<Hp.epts.length;j++){e=Hp.epts[j];if(j===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();
     trailPaint(c,Hp.pts,head,MOON_RGB,k);
-    var eh=Hp.epts[head];dot(c,eh[0],eh[1],3.4*k,EARTH_HEX,EARTH_HEX,0);
+    var eh=Hp.epts[head];bodyOrDot(c,eh[0],eh[1],'earth',3.4*k,EARTH_HEX,0,k);
+    bodyOrDot(c,Hp.sun[0],Hp.sun[1],'sun',7*k,SUN_HEX,38*k,k);
   }
   function paintPanel(c,W,H,target,head,phi,exag,o){if(target==='helio')paintHelio(c,W,H,head,exag,o);else paintGeo(c,W,H,head,phi,o);}
 
@@ -283,21 +305,26 @@
   // -- vector (SVG still) --
   function rnd(n){return Math.round(n*100)/100;}
   function poly(pts,a,b){var d='',i;for(i=a;i<=b;i++){d+=(i===a?'M':'L')+rnd(pts[i][0])+' '+rnd(pts[i][1]);}return d;}
+  function svgBody(which,x,y,k,fallback){
+    var url=bodyData[which];if(!url)return fallback;
+    var d=DIA[which]*k*bscale();
+    return '<image href="'+url+'" xlink:href="'+url+'" x="'+rnd(x-d/2)+'" y="'+rnd(y-d/2)+'" width="'+rnd(d)+'" height="'+rnd(d)+'"/>';
+  }
   function svgPanel(target,W,H,head,phi,exag){
     var k=skf(W,H),g='';
     if(target==='helio'){
       var Hp=helioPoints(W,H,head,exag),lo=Math.max(1,head-90);
-      g+='<circle cx="'+rnd(Hp.sun[0])+'" cy="'+rnd(Hp.sun[1])+'" r="'+rnd(7*k)+'" fill="'+SUN_HEX+'" filter="url(#glow)"/>';
       g+='<path d="'+poly(Hp.epts,0,head)+'" fill="none" stroke="#454b58" stroke-opacity=".6" stroke-width="'+rnd(1*k)+'"/>';
       g+='<path d="'+poly(Hp.pts,0,head)+'" fill="none" stroke="'+MOONHEAD_HEX+'" stroke-opacity=".32" stroke-width="'+rnd(1.15*k)+'" stroke-linejoin="round"/>';
       g+='<path d="'+poly(Hp.pts,lo,head)+'" fill="none" stroke="'+MOONHEAD_HEX+'" stroke-opacity=".92" stroke-width="'+rnd(1.15*k)+'" stroke-linecap="round"/>';
-      var eh=Hp.epts[head];g+='<circle cx="'+rnd(eh[0])+'" cy="'+rnd(eh[1])+'" r="'+rnd(3.4*k)+'" fill="'+EARTH_HEX+'"/>';
+      var eh=Hp.epts[head];g+=svgBody('earth',eh[0],eh[1],k,'<circle cx="'+rnd(eh[0])+'" cy="'+rnd(eh[1])+'" r="'+rnd(3.4*k)+'" fill="'+EARTH_HEX+'"/>');
+      g+=svgBody('sun',Hp.sun[0],Hp.sun[1],k,'<circle cx="'+rnd(Hp.sun[0])+'" cy="'+rnd(Hp.sun[1])+'" r="'+rnd(7*k)+'" fill="'+SUN_HEX+'" filter="url(#glow)"/>');
     }else{
       var Gp=geoPoints(W,H,head,phi),lo2=Math.max(1,head-90);
-      g+='<circle cx="'+rnd(Gp.earth[0])+'" cy="'+rnd(Gp.earth[1])+'" r="'+rnd(5*k)+'" fill="'+EARTH_HEX+'" filter="url(#glow)"/>';
+      g+=svgBody('earth',Gp.earth[0],Gp.earth[1],k,'<circle cx="'+rnd(Gp.earth[0])+'" cy="'+rnd(Gp.earth[1])+'" r="'+rnd(5*k)+'" fill="'+EARTH_HEX+'" filter="url(#glow)"/>');
       g+='<path d="'+poly(Gp.pts,0,head)+'" fill="none" stroke="'+MOONHEAD_HEX+'" stroke-opacity=".32" stroke-width="'+rnd(1.15*k)+'" stroke-linejoin="round"/>';
       g+='<path d="'+poly(Gp.pts,lo2,head)+'" fill="none" stroke="'+MOONHEAD_HEX+'" stroke-opacity=".92" stroke-width="'+rnd(1.15*k)+'" stroke-linecap="round"/>';
-      var mh=Gp.pts[head];g+='<circle cx="'+rnd(mh[0])+'" cy="'+rnd(mh[1])+'" r="'+rnd(2.7*k)+'" fill="'+MOONHEAD_HEX+'" filter="url(#glow)"/>';
+      var mh=Gp.pts[head];g+=svgBody('moon',mh[0],mh[1],k,'<circle cx="'+rnd(mh[0])+'" cy="'+rnd(mh[1])+'" r="'+rnd(2.7*k)+'" fill="'+MOONHEAD_HEX+'" filter="url(#glow)"/>');
     }
     return g;
   }
@@ -306,7 +333,7 @@
     var defs='<defs><filter id="glow" x="-60%" y="-60%" width="220%" height="220%">'+
       '<feGaussianBlur stdDeviation="'+std+'" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
     var bg=transparent?'':'<rect width="'+W+'" height="'+H+'" fill="#07080c"/>';
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+defs+bg+inner+'</svg>';
+    return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+defs+bg+inner+'</svg>';
   }
   document.getElementById('svgBtn').addEventListener('click',function(){
     var W=outW(),transparent=transpEl.checked,head=maxHead(),exag=parseInt(exagEl.value,10),svg;
@@ -353,6 +380,29 @@
       if(done)rec.stop();else requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
+  });
+
+  // ================= custom body art =================
+  var bscaleEl=document.getElementById('bscale');
+  function refreshStatic(){if(!playing)staticFull();}
+  function loadBody(which,id){
+    var input=document.getElementById(id);
+    input.addEventListener('change',function(){
+      var f=input.files&&input.files[0];if(!f)return;
+      var rd=new FileReader();
+      rd.onload=function(){var url=rd.result,im=new Image();
+        im.onload=function(){bodyImg[which]=im;bodyData[which]=url;refreshStatic();exNote.textContent=which+' art loaded.';};
+        im.onerror=function(){exNote.textContent='Could not load that '+which+' image (SVGs need a width/height).';};
+        im.src=url;};
+      rd.readAsDataURL(f);
+    });
+  }
+  loadBody('moon','imgMoon');loadBody('earth','imgEarth');loadBody('sun','imgSun');
+  bscaleEl.addEventListener('input',function(){document.getElementById('bscaleV').textContent=parseFloat(bscaleEl.value).toFixed(1);refreshStatic();});
+  document.getElementById('bReset').addEventListener('click',function(){
+    bodyImg={moon:null,earth:null,sun:null};bodyData={moon:null,earth:null,sun:null};
+    ['imgMoon','imgEarth','imgSun'].forEach(function(id){document.getElementById(id).value='';});
+    refreshStatic();exNote.textContent='Bodies reset to default dots.';
   });
 
   // ================= init =================
