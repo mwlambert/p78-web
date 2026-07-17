@@ -17,6 +17,17 @@
   body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.5;
     background:radial-gradient(80% 55% at 50% -8%, rgba(255,85,0,.07), transparent 60%), var(--bg);}
   .wrap{max-width:1080px;margin:0 auto;padding:44px 24px 72px}
+  .app{display:flex;height:100vh;overflow:hidden}
+  .rail{width:394px;flex:none;overflow-y:auto;padding:28px 22px 52px;border-right:1px solid var(--line);background:#080a10}
+  .viewport{flex:1;min-width:0;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;padding:26px 30px}
+  .rail header{margin-bottom:20px}
+  .rail h1{font-size:23px;line-height:1.08;max-width:none}
+  .rail .lede{font-size:13px}
+  .viewport .panel{margin:0}
+  canvas.stage{cursor:grab}canvas.stage:active{cursor:grabbing}
+  @media(max-width:860px){.app{height:auto;overflow:visible;flex-direction:column}
+    .rail{width:auto;overflow:visible;border-right:none;border-bottom:1px solid var(--line)}
+    .viewport{overflow:visible;padding:20px}}
   header{margin-bottom:26px}
   .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--orange);margin:0 0 14px}
   h1{font-size:clamp(28px,4.6vw,50px);line-height:1.03;margin:0 0 16px;font-weight:650;letter-spacing:-.02em;text-wrap:balance;max-width:15ch}
@@ -63,21 +74,15 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app">
+<aside class="rail">
   <header>
     <p class="eyebrow">P78 · nested orbital mechanics</p>
-    <h1>A satellite, the Moon, and the Earth</h1>
-    <p class="lede">True nested Kepler motion in the <b>Earth-fixed frame</b>. A satellite orbits its
-      primary while the Moon sweeps its own orbit — so a lunar satellite's path winds into a
-      <b>coil wrapped around the Moon's orbit</b>. Orbit sizes are magnified (labelled) so the
-      coil is legible; the shapes and periods are real.</p>
+    <h1>Satellite · Moon · Earth</h1>
+    <p class="lede">Nested Kepler motion in the <b>Earth-fixed frame</b>: a satellite orbits its
+      primary while the Moon sweeps its own orbit, so a lunar satellite winds into a
+      <b>coil around the Moon's orbit</b>. Drag the viewer to rotate, scroll to zoom.</p>
   </header>
-
-  <div class="panel">
-    <div class="phead"><h2 id="sceneTitle">Low Lunar Orbit</h2><span class="frametag">Earth held still</span></div>
-    <canvas class="stage" id="view" width="1080" height="820"></canvas>
-    <div class="pfoot" id="foot"></div>
-  </div>
 
   <div class="card">
     <div class="exhead">Orbit</div>
@@ -154,14 +159,23 @@
     </div>
   </div>
 
-  <div class="legend">
-    <span><i class="dot" style="background:var(--moon)"></i>Satellite path</span>
-    <span><i class="dot" style="background:#B9C2D0"></i>Moon</span>
-    <span><i class="dot" style="background:var(--earth)"></i>Earth</span>
-    <span><i class="dot" style="background:var(--faint)"></i>Moon's orbit</span>
-  </div>
-  <p class="foot">Nested two-body Kepler · real elements &amp; periods (Kepler's 3rd law) · Earth-fixed inertial frame
-    · <b>orbit magnified so the coil reads — a labelled diagram, not true scale</b></p>
+  </aside>
+
+  <main class="viewport">
+    <div class="panel">
+      <div class="phead"><h2 id="sceneTitle">Low Lunar Orbit</h2><span class="frametag">drag to rotate · scroll to zoom · dbl-click resets view</span></div>
+      <canvas class="stage" id="view" width="1080" height="820"></canvas>
+      <div class="pfoot" id="foot"></div>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--moon)"></i>Satellite path</span>
+      <span><i class="dot" style="background:#B9C2D0"></i>Moon</span>
+      <span><i class="dot" style="background:var(--earth)"></i>Earth</span>
+      <span><i class="dot" style="background:var(--faint)"></i>Moon's orbit</span>
+    </div>
+    <p class="foot">Nested two-body Kepler · real elements &amp; periods · Earth-fixed inertial frame
+      · <b>orbit magnified so the coil reads — a labelled diagram, not true scale</b></p>
+  </main>
 </div>
 
 <script>
@@ -208,7 +222,7 @@
   // ---- projection ----
   function projector(W,H,phi){
     var tl=S.tilt*DEG,ct=Math.cos(tl),st=Math.sin(tl),cph=Math.cos(phi),sph=Math.sin(phi);
-    var SC=Math.min(W,H)*0.5/(aMoon*1.16), cx=W/2, cy=H/2;
+    var SC=Math.min(W,H)*0.5/(aMoon*1.16)*zoom, cx=W/2, cy=H/2;
     return function(pt){var x=pt[0]*cph-pt[1]*sph,y=pt[0]*sph+pt[1]*cph,z=pt[2],yv=y*ct-z*st;return [cx+x*SC,cy-yv*SC];};
   }
   function satPlot(i){var s=traj.sat[i],p=traj.prim[i],m=P.mag;return [p[0]+m*(s[0]-p[0]),p[1]+m*(s[1]-p[1]),p[2]+m*(s[2]-p[2])];}
@@ -253,16 +267,30 @@
       +'Period '+(satPeriod*24).toFixed(2)+' h · orbit shown at <span class="scale">×'+P.mag+'</span>.';}
 
   // ---- animation ----
-  var playEl=document.getElementById('play'),playing=!reduce,t0=null,holdUntil=0,DRAW_MS=11000,HOLD_MS=1400,CAM_W=TWO/24000,camPhi=0;
-  function frame(now){if(t0===null)t0=now;camPhi=S.drift*Math.sin(now*CAM_W);
+  var playEl=document.getElementById('play'),playing=!reduce,t0=null,holdUntil=0,DRAW_MS=11000,HOLD_MS=1400,CAM_W=TWO/24000,camPhi=0,zoom=1,camYaw=0;
+  function frame(now){if(t0===null)t0=now;camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
     var mh=P.samples,elapsed=now-t0,head;
     if(now<holdUntil)head=mh;else{var f=elapsed/DRAW_MS;if(f>=1){head=mh;holdUntil=now+HOLD_MS;t0=now+HOLD_MS;}else head=Math.max(2,Math.round(f*mh));}
     draw(head,camPhi);if(playing)requestAnimationFrame(frame);}
-  function staticFull(){draw(P.samples,camPhi);}
+  function staticFull(){draw(P.samples,camYaw);}
   function refreshStatic(){if(!playing)staticFull();}
   playEl.addEventListener('click',function(){playing=!playing;playEl.textContent=playing?'Pause':'Play';
     playEl.setAttribute('aria-label',(playing?'Pause':'Play')+' animation');if(playing){t0=null;holdUntil=0;requestAnimationFrame(frame);}});
   window.addEventListener('resize',function(){if(!playing)staticFull();});
+
+  // ---- interactive camera: drag = rotate (yaw + tilt), scroll = zoom, dbl-click = reset ----
+  var dragging=false,lastX=0,lastY=0;
+  VIEW.addEventListener('pointerdown',function(ev){dragging=true;lastX=ev.clientX;lastY=ev.clientY;try{VIEW.setPointerCapture(ev.pointerId);}catch(e){}});
+  VIEW.addEventListener('pointermove',function(ev){if(!dragging)return;
+    var dx=ev.clientX-lastX,dy=ev.clientY-lastY;lastX=ev.clientX;lastY=ev.clientY;
+    camYaw+=dx*0.006;
+    S.tilt=Math.max(0,Math.min(88,S.tilt-dy*0.25));
+    var te=document.getElementById('sTilt');if(te)te.value=Math.round(S.tilt);setTxt('tiltV',Math.round(S.tilt));
+    if(!playing)draw(P.samples,camYaw);});
+  VIEW.addEventListener('pointerup',function(){dragging=false;});
+  VIEW.addEventListener('pointercancel',function(){dragging=false;});
+  VIEW.addEventListener('wheel',function(ev){ev.preventDefault();zoom=Math.max(0.3,Math.min(6,zoom*Math.exp(-ev.deltaY*0.0012)));if(!playing)draw(P.samples,camYaw);},{passive:false});
+  VIEW.addEventListener('dblclick',function(){zoom=1;camYaw=0;if(!playing)draw(P.samples,camYaw);});
 
   // ---- orbit controls ----
   var altEl=document.getElementById('alt'),eEl=document.getElementById('e'),incEl=document.getElementById('inc'),
