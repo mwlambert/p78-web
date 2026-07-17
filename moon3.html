@@ -37,7 +37,7 @@
   .phead{display:flex;justify-content:space-between;align-items:baseline;padding:15px 18px 11px;border-bottom:1px solid var(--line)}
   .phead h2{font-size:14.5px;margin:0;font-weight:600}
   .frametag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
-  canvas.stage{display:block;width:100%;height:auto}
+  canvas.stage{display:block;max-width:100%;height:auto;margin:0 auto}
   .pfoot{padding:12px 18px 16px;font-size:12.5px;color:var(--muted);min-height:18px}
   .pfoot b{color:var(--ink);font-weight:600}.scale{font-family:var(--mono);color:var(--orange)}
 
@@ -284,8 +284,17 @@
   }
 
   // ---- on-screen ----
-  function setup(cv){var dpr=Math.min(window.devicePixelRatio||1,2),w=cv.clientWidth||cv.width,h=w*(1000/1080);
-    cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.height=h+'px';var c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);return {c:c,w:w,h:h};}
+  function setup(cv){
+    var dpr=Math.min(window.devicePixelRatio||1,2), aspect=1000/1080;
+    var panel=cv.parentNode, availW=panel.clientWidth||cv.width;
+    var vp=document.querySelector('.viewport'), vpH=vp?vp.clientHeight:availW;
+    var maxH=Math.max(300, vpH-220);                 // leave room for header + legend + foot
+    var w=availW, h=w*aspect; if(h>maxH){h=maxH; w=h/aspect;}
+    cv.style.width=w+'px'; cv.style.height=h+'px';
+    cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+    var c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0);
+    return {c:c,w:w,h:h};
+  }
   var VIEW=document.getElementById('view');
   function draw(head,phi){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:true});var f;
     if(P.mode==='mission') f='LEO → apogee-raising → TLI → LLO capture · <b>patched-conic schematic</b> · LLO coil at <span class="scale">×'+P.mag+'</span>.';
