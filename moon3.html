@@ -31,6 +31,10 @@
   body.embed .viewport{padding:0;overflow:hidden}
   body.embed .panel{width:100vw;height:100vh;margin:0;border:0;border-radius:0}
   body.embed .phead,body.embed .pfoot,body.embed .legend,body.embed .foot{display:none}
+  .fsbtn{position:fixed;top:14px;right:14px;z-index:60;width:34px;height:34px;border:1px solid rgba(255,255,255,.18);
+    background:rgba(10,12,18,.45);color:#cdd6e4;border-radius:7px;cursor:pointer;font-size:15px;line-height:1;
+    display:flex;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);opacity:.45;transition:opacity .2s}
+  .fsbtn:hover{opacity:1}
   @media(max-width:860px){.app{height:auto;overflow:visible;flex-direction:column}
     .rail{width:auto;overflow:visible;border-right:none;border-bottom:1px solid var(--line)}
     .viewport{overflow:visible;padding:20px}}
@@ -81,6 +85,7 @@
 </style>
 </head>
 <body>
+<button id="fsBtn" class="fsbtn" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
 <div class="app">
 <aside class="rail">
   <header>
@@ -675,6 +680,14 @@
   showFleetEl.addEventListener('change',function(){P.showFleet=showFleetEl.checked;refreshStatic();updateHash();});
   fleetSpaceEl.addEventListener('change',function(){P.fleetDist=fleetSpaceEl.value==='dist';refreshStatic();updateHash();});
   fleetTrailEl.addEventListener('change',function(){P.fleetTrail=fleetTrailEl.checked;refreshStatic();updateHash();});
+  // fullscreen (movie mode) — Fullscreen API, no browser toolbar
+  var fsBtn=document.getElementById('fsBtn');
+  function fsEl(){return document.fullscreenElement||document.webkitFullscreenElement;}
+  fsBtn.addEventListener('click',function(){
+    if(fsEl()){(document.exitFullscreen||document.webkitExitFullscreen).call(document);}
+    else{var e=document.documentElement,rq=e.requestFullscreen||e.webkitRequestFullscreen;if(rq)rq.call(e);}});
+  function fsSync(){fsBtn.textContent=fsEl()?'✕':'⛶';fsBtn.title=fsEl()?'Exit fullscreen':'Fullscreen';}
+  document.addEventListener('fullscreenchange',fsSync);document.addEventListener('webkitfullscreenchange',fsSync);
   sunEl.addEventListener('change',function(){P.sun=sunEl.checked;refreshStatic();updateHash();});
   roundTripEl.addEventListener('change',readOrbit);
   primBtns.forEach(function(b){b.addEventListener('click',function(){P.primary=b.getAttribute('data-p');setPrimaryUI();compute();refreshStatic();updateHash();});});
