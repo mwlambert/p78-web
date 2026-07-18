@@ -163,7 +163,7 @@
       <label class="mini">Line ×<span id="lwV">1.00</span> <input type="range" id="sLw" min="0.4" max="3" step="0.05" value="1" style="width:100px"></label>
       <label class="mini">Glow ×<span id="glowV">1.00</span> <input type="range" id="sGlow" min="0" max="2.5" step="0.05" value="1" style="width:100px"></label>
       <label class="mini">Orbit opacity <span id="refopV">0.55</span> <input type="range" id="sRefop" min="0" max="1" step="0.02" value="0.55" style="width:100px"></label>
-      <label class="mini">Tilt <span id="tiltV">64</span>° <input type="range" id="sTilt" min="0" max="88" step="1" value="64" style="width:100px"></label>
+      <label class="mini">Tilt <span id="tiltV">49</span>° <input type="range" id="sTilt" min="0" max="88" step="1" value="49" style="width:100px"></label>
       <label class="mini">Drift <span id="driftV">0.00</span> <input type="range" id="sDrift" min="0" max="0.8" step="0.02" value="0" style="width:100px"></label>
       <button class="btn" id="copyLink">Copy link</button>
       <button class="btn" id="styleReset">Reset style</button>
@@ -348,7 +348,7 @@
   function lastHead(){return traj.sat.length-1;}
 
   // ---- style ----
-  var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:64,drift:0};
+  var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0};
   function hexRGB(h){h=(h||'#000000').replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
     return parseInt(h.slice(0,2),16)+','+parseInt(h.slice(2,4),16)+','+parseInt(h.slice(4,6),16);}
 
