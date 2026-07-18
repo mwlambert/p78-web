@@ -178,6 +178,7 @@
       <button class="btn" id="vidBtn">Record</button>
       <span class="exnote" id="exNote"></span>
     </div>
+    <div class="row" style="margin-top:4px"><span class="exnote" id="exPlan" style="opacity:.8"></span></div>
   </div>
 
   </aside>
@@ -579,6 +580,17 @@
       else{phi=S.drift*Math.sin(now*CAM_W);head=t<D?Math.max(2,Math.round((t/D)*mh)):mh;if(t>=SEQ_MS)done=true;}
       paint(cx,W,H,head,phi,{transparent:false});if(done)rec.stop();else requestAnimationFrame(tick);}
     requestAnimationFrame(tick);});
+
+  // live export readout — exact dims + mode + clip length, so what you'll get is never a guess
+  var exPlan=document.getElementById('exPlan');
+  function updatePlan(){var s=outSize(),mode=vmodeEl.value,
+    secs=mode==='loop'?12.0:(drawMs()+HOLD_MS+2400)/1000,
+    ml=mode==='loop'?'seamless loop':'draw sequence';
+    exPlan.textContent='Video → '+s.w+'×'+s.h+' · '+ml+' · ≈ '+secs.toFixed(1)+' s'+(mode==='loop'?' (fixed)':'');}
+  document.getElementById('outfmt').addEventListener('change',updatePlan);
+  vmodeEl.addEventListener('change',updatePlan);
+  document.getElementById('animdur').addEventListener('input',updatePlan);
+  updatePlan();
 
   // body art
   function loadBody(which,id){var input=document.getElementById(id);input.addEventListener('change',function(){
