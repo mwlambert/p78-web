@@ -357,6 +357,7 @@
     var tl=S.tilt*DEG,ct=Math.cos(tl),st=Math.sin(tl),cph=Math.cos(phi),sph=Math.sin(phi);
     var C=traj.C||[0,0,0], rMax=traj.rMax||aMoon;
     var SC=Math.min(W,H)*0.5/(rMax*1.14)*zoom, cx=W/2+panX, cy=H/2+panY;
+    if(P.mode==='mission'){var eyv=(-C[0]*sph-C[1]*cph)*ct+C[2]*st; cy=0.66*H+eyv*SC+panY;}   // anchor Earth ~1/3 up from the bottom
     return function(pt){var X=pt[0]-C[0],Y=pt[1]-C[1],Z=pt[2]-C[2];
       var x=X*cph-Y*sph,y=X*sph+Y*cph,z=Z,yv=y*ct-z*st,zv=y*st+z*ct;return [cx+x*SC,cy-yv*SC,zv];};   // [screenX, screenY, depth]
   }
