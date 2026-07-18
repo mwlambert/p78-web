@@ -129,6 +129,8 @@
       <label class="mini chk"><input type="checkbox" id="showSats" checked> Other satellites</label>
       <label class="mini chk"><input type="checkbox" id="showLag"> L1 / L2</label>
       <label class="mini chk"><input type="checkbox" id="showHop" checked> Launches</label>
+      <label class="mini chk"><input type="checkbox" id="showFleet"> Escort drones</label>
+      <select class="sel" id="fleetSpace" aria-label="Escort spacing"><option value="time">Escorts · by time</option><option value="dist">Escorts · by distance</option></select>
       <label class="mini chk"><input type="checkbox" id="sunLight"> Sunlight</label>
       <div class="ctl" style="min-width:190px"><label>Animation <span class="val"><span id="animdurV">18</span> s</span></label><input type="range" id="animdur" min="3" max="60" step="1" value="18"></div>
       <button class="btn" id="play" aria-label="Pause animation">Pause</button>
@@ -225,7 +227,7 @@
   function periodDays(a,mu){return TWO*Math.sqrt(a*a*a/mu)/DAY;}
 
   // ---- params + trajectory ----
-  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:36,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,sun:false};
+  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:36,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,sun:false};
   var traj={moon:[],sat:[],prim:[]}, satPeriod=0, satA=0;
   function computeOrbit(){
     var prim=P.primary, R=(prim==='moon'?R_M:R_E), mu=(prim==='moon'?muM:muE);
@@ -311,6 +313,11 @@
     traj.moon=moon;traj.prim=prim;traj.sat=all;
     traj.loopOrbits=rate>0?rate*(moon.length-1)/TWO:0;             // whole Moon orbits per loop (round trip)
     if(!P.roundTrip)traj.missionOrbits=traj.loopOrbits;
+    traj.spd=rate>0?(TWO/Tmoon)/rate:80;                           // trajectory samples per day (for escort-drone offsets)
+    traj.rate=rate;                                                // Moon rad/sample — escort drones rotate by rate*offset so their coil tracks the current Moon
+    var cum=[0],ci,_dx,_dy,_dz;                                    // cumulative path length (for distance-spaced escorts)
+    for(ci=1;ci<all.length;ci++){_dx=all[ci][0]-all[ci-1][0];_dy=all[ci][1]-all[ci-1][1];_dz=all[ci][2]-all[ci-1][2];cum[ci]=cum[ci-1]+Math.sqrt(_dx*_dx+_dy*_dy+_dz*_dz);}
+    traj.cum=cum;
   }
   function computeFraming(){                          // bounding sphere of what's drawn → auto-fit + centre
     var n=traj.sat.length,i,cx=0,cy=0,cz=0,acc=[],p;
@@ -499,6 +506,7 @@
   // one companion sat in the vehicle's LEO orbit, one in its LLO orbit (same rings, coplanar)
   var AMBS=[{body:0,phase:1.1,rate:0.00060},{body:1,phase:2.4,rate:0.00095}];
   // fading comet tail behind the head (wraps the loop seam), or the whole path when full
+  function arcIndex(L,cum,hi){var lo=0,h=hi,m;while(lo<h){m=(lo+h)>>1;if(cum[m]<L)lo=m+1;else h=m;}return lo;}   // first index whose cumulative length ≥ L
   function trailPaint(c,pts,head,total,rgb,k,full,occ,env,grow){env=env==null?1:env;c.lineWidth=1.15*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
     if(full){for(i=1;i<=total;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;c.strokeStyle='rgba('+rgb+',0.5)';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
     if(grow){var lead=Math.max(1,total*0.16);                 // reveal: draw start→head, persistent trail + bright leading edge (no wrap → starts empty, builds to full)
@@ -541,6 +549,19 @@
       else{bp=traj.moon[head];rad=P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt));inc=(P.mode==='mission'?P.lloInc:P.inc)*DEG;} // LLO ring (on the coil)
       ang=A.phase+A.rate*NOW;uu=keplerPos(rad,0,inc,0,0,ang);
       asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],2.9*k,'#fff2cf','#e6bf5c',5*k*S.glow);}}   // gold-foil depot (MLI), lit core
+    // escort drones — a convoy: each flies the IDENTICAL mission (to the real Moon and back), spread
+    // across the trip so some are outbound, some at the Moon, some inbound. Rotated forward by the Moon's
+    // motion over each offset so every escort rendezvous with the current Moon (undrawn arcs fan around Earth).
+    if(P.showFleet && P.mode==='mission'){var fd,foff,fa,ca,sa,fidx,fq,fp,rt=traj.rate||0,
+        mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=12,
+        cum=traj.cum,Lm=(P.fleetDist&&cum)?cum[Math.min(cum.length-1,mSamp)]:0;
+      for(fd=1;fd<=NF;fd++){
+        if(P.fleetDist&&cum&&Lm>0){foff=arcIndex(fd/(NF+1)*Lm,cum,mSamp);}   // even by path length → more vehicles in transit
+        else{foff=Math.round(fd/(NF+1)*mSamp);}                              // even by mission time → more parked at the Moon
+        fa=rt*foff;ca=Math.cos(fa);sa=Math.sin(fa);
+        fidx=((head-foff)%total+total)%total;fq=satPlot(fidx);
+        fp=pr([fq[0]*ca-fq[1]*sa, fq[0]*sa+fq[1]*ca, fq[2]]);
+        if(occ(fp))continue;dot(c,fp[0],fp[1],1.6*k,'#aebbd0',4*k*S.glow);}}
     // hoppers: Moon surface ↔ LLO sat, Earth surface ↔ support sat
     if(P.showHop){
       drawLaunch(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, AMBS[1].phase, AMBS[1].rate, 0.20, k);
@@ -619,7 +640,7 @@
   // ---- orbit controls ----
   var altEl=document.getElementById('alt'),eEl=document.getElementById('e'),incEl=document.getElementById('inc'),
       magEl=document.getElementById('mag'),spanEl=document.getElementById('span'),presetEl=document.getElementById('preset'),
-      showMoonEl=document.getElementById('showMoonOrbit'),showSatsEl=document.getElementById('showSats'),showLagEl=document.getElementById('showLag'),showTrailEl=document.getElementById('showTrail'),showHopEl=document.getElementById('showHop'),sunEl=document.getElementById('sunLight'),raiseEl=document.getElementById('raise'),
+      showMoonEl=document.getElementById('showMoonOrbit'),showSatsEl=document.getElementById('showSats'),showLagEl=document.getElementById('showLag'),showTrailEl=document.getElementById('showTrail'),showHopEl=document.getElementById('showHop'),showFleetEl=document.getElementById('showFleet'),fleetSpaceEl=document.getElementById('fleetSpace'),sunEl=document.getElementById('sunLight'),raiseEl=document.getElementById('raise'),
       coastEl=document.getElementById('coast'),pmulEl=document.getElementById('pmul'),animdurEl=document.getElementById('animdur'),
       roundTripEl=document.getElementById('roundTrip'),primBtns=[].slice.call(document.querySelectorAll('.segbtn'));
   function orbLabels(){document.getElementById('altV').textContent=Math.round(P.alt);
@@ -635,7 +656,7 @@
     P.mag=parseInt(magEl.value,10);P.span=parseFloat(spanEl.value);P.raise=parseInt(raiseEl.value,10);P.coast=parseFloat(coastEl.value);P.periodMul=parseFloat(pmulEl.value);
     P.roundTrip=roundTripEl.checked;P.showMoon=showMoonEl.checked;orbLabels();compute();refreshStatic();updateHash();}
   function writeOrbit(){altEl.value=P.alt;eEl.value=P.e;incEl.value=P.inc;magEl.value=P.mag;spanEl.value=P.span;
-    raiseEl.value=P.raise;coastEl.value=P.coast;pmulEl.value=P.periodMul;animdurEl.value=P.animDur;roundTripEl.checked=P.roundTrip;showMoonEl.checked=P.showMoon;showSatsEl.checked=P.showSats;showLagEl.checked=P.showLag;showTrailEl.checked=P.showTrail;showHopEl.checked=P.showHop;sunEl.checked=P.sun;setPrimaryUI();updateModeUI();orbLabels();}
+    raiseEl.value=P.raise;coastEl.value=P.coast;pmulEl.value=P.periodMul;animdurEl.value=P.animDur;roundTripEl.checked=P.roundTrip;showMoonEl.checked=P.showMoon;showSatsEl.checked=P.showSats;showLagEl.checked=P.showLag;showTrailEl.checked=P.showTrail;showHopEl.checked=P.showHop;showFleetEl.checked=P.showFleet;fleetSpaceEl.value=P.fleetDist?'dist':'time';sunEl.checked=P.sun;setPrimaryUI();updateModeUI();orbLabels();}
   animdurEl.addEventListener('input',function(){P.animDur=parseFloat(animdurEl.value);document.getElementById('animdurV').textContent=Math.round(P.animDur);updateHash();});
   [altEl,eEl,incEl,magEl,spanEl,raiseEl,coastEl,pmulEl].forEach(function(el){el.addEventListener('input',readOrbit);});
   showMoonEl.addEventListener('change',readOrbit);
@@ -643,6 +664,8 @@
   showLagEl.addEventListener('change',function(){P.showLag=showLagEl.checked;refreshStatic();updateHash();});
   showTrailEl.addEventListener('change',function(){P.showTrail=showTrailEl.checked;refreshStatic();updateHash();});
   showHopEl.addEventListener('change',function(){P.showHop=showHopEl.checked;refreshStatic();updateHash();});
+  showFleetEl.addEventListener('change',function(){P.showFleet=showFleetEl.checked;refreshStatic();updateHash();});
+  fleetSpaceEl.addEventListener('change',function(){P.fleetDist=fleetSpaceEl.value==='dist';refreshStatic();updateHash();});
   sunEl.addEventListener('change',function(){P.sun=sunEl.checked;refreshStatic();updateHash();});
   roundTripEl.addEventListener('change',readOrbit);
   primBtns.forEach(function(b){b.addEventListener('click',function(){P.primary=b.getAttribute('data-p');setPrimaryUI();compute();refreshStatic();updateHash();});});
@@ -746,7 +769,7 @@
   function writeStyle(){styleCtl.forEach(function(m){var el=document.getElementById(m[0]);if(el)el.value=S[m[1]];});syncStyleLabels();}
   function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))));}
   function dec(s){return JSON.parse(decodeURIComponent(escape(atob(s))));}
-  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,coast:P.coast,periodMul:P.periodMul,animDur:P.animDur,roundTrip:P.roundTrip,showMoon:P.showMoon,showSats:P.showSats,showLag:P.showLag,showTrail:P.showTrail,showHop:P.showHop,sun:P.sun},preset:presetEl.value,bscale:parseFloat(document.getElementById('bscale').value)};}
+  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,coast:P.coast,periodMul:P.periodMul,animDur:P.animDur,roundTrip:P.roundTrip,showMoon:P.showMoon,showSats:P.showSats,showLag:P.showLag,showTrail:P.showTrail,showHop:P.showHop,showFleet:P.showFleet,fleetDist:P.fleetDist,sun:P.sun},preset:presetEl.value,bscale:parseFloat(document.getElementById('bscale').value)};}
   function updateHash(){try{history.replaceState(null,'','#s='+enc(getState()));}catch(e){}}
   function loadFromHash(){var m=(location.hash||'').match(/s=([^&]+)/);if(!m)return;
     try{var st=dec(m[1]);if(st.S)for(var a in st.S){if(S.hasOwnProperty(a))S[a]=st.S[a];}
