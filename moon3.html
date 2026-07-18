@@ -536,7 +536,7 @@
     c.restore();}
 
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}
+    o=o||{};var k=skf(W,H)*zoom,total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // fold zoom into the mark scale so bodies/traces stay proportional to the orbits at any zoom (zoom=1 → unchanged)
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
     // Moon's orbit (full reference ring)
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*k;c.beginPath();
