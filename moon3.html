@@ -800,7 +800,7 @@
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){exNote.textContent='Link copied.';},function(){exNote.textContent='Copy failed — URL is in the address bar.';});
     else exNote.textContent='The tuned URL is in your address bar.';});
   document.getElementById('styleReset').addEventListener('click',function(){
-    S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:64,drift:0};
+    S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0};
     writeStyle();refreshStatic();updateHash();exNote.textContent='Style reset.';});
 
   // ---- init ----
