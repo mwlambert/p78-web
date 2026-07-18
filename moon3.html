@@ -197,7 +197,7 @@
   var muE=398600.4418, muM=4902.800, R_E=6371, R_M=1737.4;
   var aMoon=384400, eMoon=0.0549, iMoon=5.145*DEG, Tmoon=27.321661;   // Moon around Earth (days)
   var lagR=aMoon*Math.cbrt((muM/(muE+muM))/3);        // Earth–Moon L1/L2 distance from the Moon (~61,000 km)
-  var STAGE_R=40000;                                   // schematic staging-orbit radius (support sat) — visible stand-in for a quiet high-LEO
+  var STAGE_R=15000;                                   // schematic staging-orbit radius (support sat) — visible stand-in for a quiet high-LEO
 
   function keplerPos(a,e,inc,Om,w,nu){
     var p=a*(1-e*e)/(1+e*Math.cos(nu)),x=p*Math.cos(nu),y=p*Math.sin(nu),z=0,c,s,x1,y1,z1;
@@ -237,13 +237,13 @@
     function conic(a,e,nu){return keplerPos(a,e,incT,0,0,nu);}
     function elt(rp,ra){return {a:(rp+ra)/2,e:(ra-rp)/(ra+rp)};}
     // apsides on x (apogee at nu=pi=-x, perigee nu=0=+x). Sample by equal MEAN anomaly (equal time).
-    // Outbound: LEO parking → apogee-raising → staging orbit (with the support sat) → TLI to the Moon.
-    var arcs=[{a:r_leo,e:0,M0:0,M1:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)}];                                    // LEO parking
-    for(kk=1;kk<Nr;kk++){rap=r_leo*Math.pow(stageR/r_leo,kk/Nr);var Er0=elt(r_leo,rap);                          // raising (full revs → apogee ramps to stageR)
-      arcs.push({a:Er0.a,e:Er0.e,M0:0,M1:TWO,dur:periodDays(Er0.a,muE)});}
-    var Ef=elt(r_leo,stageR); arcs.push({a:Ef.a,e:Ef.e,M0:0,M1:Math.PI,dur:0.5*periodDays(Ef.a,muE)});           // final raise → apogee at stageR (-x)
-    arcs.push({a:stageR,e:0,M0:Math.PI,M1:Math.PI+TWO*nStage+Math.PI,dur:(nStage+0.5)*periodDays(stageR,muE)});  // staging circular (-x → +x)
-    var Et=elt(stageR,apoTgt); arcs.push({a:Et.a,e:Et.e,M0:0,M1:Math.PI,dur:0.5*periodDays(Et.a,muE)});          // TLI: stageR(+x) → Moon(-x)
+    // Outbound: LEO parking → raise to the STAGING orbit (rendezvous) → apogee-raising → TLI to the Moon.
+    var arcs=[{a:r_leo,e:0,M0:0,M1:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)}];                                    // LEO parking (+x laps)
+    var Eh=elt(r_leo,stageR); arcs.push({a:Eh.a,e:Eh.e,M0:0,M1:Math.PI,dur:0.5*periodDays(Eh.a,muE)});           // Hohmann LEO(+x) → staging apogee (-x)
+    arcs.push({a:stageR,e:0,M0:Math.PI,M1:Math.PI+TWO*nStage+Math.PI,dur:(nStage+0.5)*periodDays(stageR,muE)});  // staging circular (-x → +x)  [RDV]
+    for(kk=1;kk<=Nr;kk++){rap=stageR*Math.pow(apoTgt/stageR,kk/(Nr+1));var Erk=elt(stageR,rap);                  // apogee-raising FROM the staging orbit (full revs)
+      arcs.push({a:Erk.a,e:Erk.e,M0:0,M1:TWO,dur:periodDays(Erk.a,muE)});}
+    var Et=elt(stageR,apoTgt); arcs.push({a:Et.a,e:Et.e,M0:0,M1:Math.PI,dur:0.5*periodDays(Et.a,muE)});          // TLI: stage(+x) → Moon(-x)
     var sat=[],sumW=0,wk=[],j;
     for(kk=0;kk<arcs.length;kk++){wk[kk]=Math.sqrt(arcs[kk].dur);sumW+=wk[kk];}
     for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(80,Math.round(2600*wk[kk]/sumW));
@@ -272,11 +272,13 @@
         rot=function(p){var d=ax*p[0]+ay*p[1]+az*p[2];
           var kx=ay*p[2]-az*p[1], ky=az*p[0]-ax*p[2], kz=ax*p[1]-ay*p[0];
           return [p[0]*cA+kx*sA+ax*d*(1-cA), p[1]*cA+ky*sA+ay*d*(1-cA), p[2]*cA+kz*sA+az*d*(1-cA)];}; }
-      // Return: TEI (Moon → staging) → staging orbit → descend → LEO parking.
+      // Return (mirror): TEI (Moon → stage) → apogee-lowering → staging orbit → descend → LEO.
       var Er=elt(stageR,apoR), Ed=elt(r_leo,stageR), rarcs=[];
-      rarcs.push({a:Er.a,e:Er.e,M0:Math.PI,M1:TWO,dur:0.5*periodDays(Er.a,muE)});                    // TEI: Moon(-x apo) → stageR(+x)
-      rarcs.push({a:stageR,e:0,M0:0,M1:TWO*nStage+Math.PI,dur:(nStage+0.5)*periodDays(stageR,muE)}); // staging circular (+x → -x)
-      rarcs.push({a:Ed.a,e:Ed.e,M0:Math.PI,M1:TWO,dur:0.5*periodDays(Ed.a,muE)});                    // descend: stageR(-x apo) → LEO(+x)
+      rarcs.push({a:Er.a,e:Er.e,M0:Math.PI,M1:TWO,dur:0.5*periodDays(Er.a,muE)});                    // TEI: Moon(-x apo) → stage(+x)
+      for(kk=Nr;kk>=1;kk--){rap=stageR*Math.pow(apoTgt/stageR,kk/(Nr+1));var Elk=elt(stageR,rap);    // apogee-lowering (full revs)
+        rarcs.push({a:Elk.a,e:Elk.e,M0:0,M1:TWO,dur:periodDays(Elk.a,muE)});}
+      rarcs.push({a:stageR,e:0,M0:0,M1:TWO*nStage+Math.PI,dur:(nStage+0.5)*periodDays(stageR,muE)}); // staging circular (+x → -x)  [RDV]
+      rarcs.push({a:Ed.a,e:Ed.e,M0:Math.PI,M1:TWO,dur:0.5*periodDays(Ed.a,muE)});                    // descend: stage(-x apo) → LEO(+x)
       rarcs.push({a:r_leo,e:0,M0:0,M1:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)});                      // LEO parking
       var sumR=0,wr=[],gidx=arrival+llo,j2,pR;
       for(kk=0;kk<rarcs.length;kk++){wr[kk]=Math.sqrt(rarcs[kk].dur);sumR+=wr[kk];}
