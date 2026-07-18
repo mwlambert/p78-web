@@ -35,6 +35,12 @@
     background:rgba(10,12,18,.45);color:#cdd6e4;border-radius:7px;cursor:pointer;font-size:15px;line-height:1;
     display:flex;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);opacity:.45;transition:opacity .2s}
   .fsbtn:hover{opacity:1}
+  .embedhint{display:none}
+  body.embed .embedhint{display:block;position:fixed;left:14px;bottom:14px;z-index:60;pointer-events:none;
+    font:12px/1.4 system-ui,-apple-system,sans-serif;color:#cdd6e4;background:rgba(10,12,18,.5);
+    padding:6px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.14);
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:hintfade 1s ease 6s forwards}
+  @keyframes hintfade{to{opacity:0;visibility:hidden}}
   @media(max-width:860px){.app{height:auto;overflow:visible;flex-direction:column}
     .rail{width:auto;overflow:visible;border-right:none;border-bottom:1px solid var(--line)}
     .viewport{overflow:visible;padding:20px}}
@@ -86,6 +92,7 @@
 </head>
 <body>
 <button id="fsBtn" class="fsbtn" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
+<div class="embedhint">⌘ / Ctrl + scroll to zoom · drag to rotate</div>
 <div class="app">
 <aside class="rail">
   <header>
@@ -643,7 +650,10 @@
   VIEW.addEventListener('pointerup',function(){dragging=false;});
   VIEW.addEventListener('pointercancel',function(){dragging=false;});
   VIEW.addEventListener('contextmenu',function(ev){ev.preventDefault();});   // allow right-drag pan without the menu
-  VIEW.addEventListener('wheel',function(ev){ev.preventDefault();
+  VIEW.addEventListener('wheel',function(ev){
+    // embedded in a scrolling page: let plain wheel scroll the page; zoom only on Ctrl/⌘ (or when fullscreen)
+    if(EMBED && !ev.ctrlKey && !ev.metaKey && !(document.fullscreenElement||document.webkitFullscreenElement))return;
+    ev.preventDefault();
     var oz=zoom; zoom=Math.max(0.3,Math.min(40,zoom*Math.exp(-ev.deltaY*0.0012)));
     var w=VIEW.clientWidth,h=VIEW.clientHeight;                   // zoom toward the cursor (keep that point fixed)
     panX+=(ev.offsetX-(w/2+panX))*(1-zoom/oz); panY+=(ev.offsetY-(h/2+panY))*(1-zoom/oz);
