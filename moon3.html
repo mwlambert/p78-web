@@ -127,7 +127,7 @@
       <label class="mini chk"><input type="checkbox" id="showMoonOrbit"> Show Moon's orbit</label>
       <label class="mini chk"><input type="checkbox" id="showSats" checked> Other satellites</label>
       <label class="mini chk"><input type="checkbox" id="showLag"> L1 / L2</label>
-      <label class="mini chk"><input type="checkbox" id="showHop" checked> Hoppers</label>
+      <label class="mini chk"><input type="checkbox" id="showHop" checked> Launches</label>
       <div class="ctl" style="min-width:190px"><label>Animation <span class="val"><span id="animdurV">18</span> s</span></label><input type="range" id="animdur" min="3" max="60" step="1" value="18"></div>
       <button class="btn" id="play" aria-label="Pause animation">Pause</button>
     </div>
@@ -344,15 +344,21 @@
     c.beginPath();c.moveTo(p[0]-r,p[1]);c.lineTo(p[0]+r,p[1]);c.moveTo(p[0],p[1]-r);c.lineTo(p[0],p[1]+r);c.stroke();
     c.fillStyle='rgba(255,170,110,0.9)';c.font=Math.round(9.5*k)+'px ui-monospace, Menlo, monospace';c.textAlign='left';c.textBaseline='middle';
     c.fillText(label,p[0]+r+3,p[1]);}
-  // hopper: a craft shuttling between a body's surface and a satellite ring (faint route + moving dot)
-  function drawHop(c,pr,bp,ring,inc,seed,k){
-    var t=((NOW*0.00035+seed)%1+1)%1, up=0.5-0.5*Math.cos(t*TWO), lo=0.14;
-    var u=keplerPos(1,0,inc,0,0,seed*6.283185);
-    var a=pr([bp[0]+ring*lo*u[0],bp[1]+ring*lo*u[1],bp[2]+ring*lo*u[2]]);   // near-surface end
-    var b1=pr([bp[0]+ring*u[0],bp[1]+ring*u[1],bp[2]+ring*u[2]]);           // ring end (the sat)
-    var r=ring*(lo+(1-lo)*up), h=pr([bp[0]+r*u[0],bp[1]+r*u[1],bp[2]+r*u[2]]);
-    c.strokeStyle='rgba(255,150,90,0.20)';c.lineWidth=Math.max(1,0.8*k);c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(b1[0],b1[1]);c.stroke();
-    dot(c,h[0],h[1],1.5*k,'#ff9a4d',5*k*S.glow);}
+  // launch: a rocket lifts off the surface, gravity-turns up to the depot sat (RDV), then relaunches
+  function drawLaunch(c,pr,bp,ring,inc,dPhase,dRate,seed,k){
+    var cyc=((NOW*0.00009+seed)%1+1)%1; if(cyc>0.82)return;         // ~11 s cycle with a gap → not continuous
+    var t=Math.min(1,cyc/0.40);                                     // ascent 0..0.40, then a long RDV hold at the depot
+    var dAng=dPhase+dRate*NOW, ud=keplerPos(1,0,inc,0,0,dAng);
+    var O=[bp[0]+ring*ud[0],bp[1]+ring*ud[1],bp[2]+ring*ud[2]];     // depot (rendezvous target)
+    var ul=keplerPos(1,0,inc,0,0,dAng-0.45), rS=ring*0.12;
+    var S=[bp[0]+rS*ul[0],bp[1]+rS*ul[1],bp[2]+rS*ul[2]];           // launch point (surface, behind the depot)
+    var C=[bp[0]+ring*0.72*ul[0],bp[1]+ring*0.72*ul[1],bp[2]+ring*0.72*ul[2]]; // control (climb radially, pitch over)
+    function bez(u){var m=1-u;return [m*m*S[0]+2*m*u*C[0]+u*u*O[0],m*m*S[1]+2*m*u*C[1]+u*u*O[1],m*m*S[2]+2*m*u*C[2]+u*u*O[2]];}
+    var i,N=16,pa=null,u,p,al;                                      // exhaust plume trailing the rocket
+    for(i=N;i>=0;i--){u=t-i*0.028; if(u<0){pa=null;continue;} p=pr(bez(u));
+      if(pa){al=(1-i/N);al=al*al*0.7;c.strokeStyle='rgba(255,140,60,'+al.toFixed(3)+')';c.lineWidth=Math.max(1,1.2*k);c.beginPath();c.moveTo(pa[0],pa[1]);c.lineTo(p[0],p[1]);c.stroke();}
+      pa=p;}
+    p=pr(bez(t));dot(c,p[0],p[1],1.8*k,'#ffd0a0',8*k*S.glow);}      // rocket
   function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);}
   var STARS=(function(){var a=[],seed=20240718,rnd=function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
     for(var i=0;i<1200;i++){var u=rnd()*2-1,th=rnd()*TWO,r=Math.sqrt(1-u*u);         // uniform 3D unit direction
@@ -406,8 +412,8 @@
       asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;dot(c,asp[0],asp[1],1.9*k,'#9fb2d4',5*k*S.glow);}}
     // hoppers: Moon surface ↔ LLO sat, Earth surface ↔ support sat
     if(P.showHop){
-      drawHop(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, 0.20, k);
-      drawHop(c,pr,[0,0,0], STAGE_R, P.inc*DEG, 0.66, k);}
+      drawLaunch(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, AMBS[1].phase, AMBS[1].rate, 0.20, k);
+      drawLaunch(c,pr,[0,0,0], STAGE_R, P.inc*DEG, AMBS[0].phase, AMBS[0].rate, 0.66, k);}
     // Earth–Moon L1 / L2 (on the Earth–Moon line, moving with the Moon)
     if(P.showLag){var mw=traj.moon[head],md=Math.hypot(mw[0],mw[1],mw[2])||1,ux=mw[0]/md,uy=mw[1]/md,uz=mw[2]/md;
       drawLag(c,pr([mw[0]-lagR*ux,mw[1]-lagR*uy,mw[2]-lagR*uz]),'L1',k);
