@@ -372,9 +372,9 @@
     var bot=g.createLinearGradient(0,H,0,H*0.85);bot.addColorStop(0,'rgba(255,255,255,0.95)');bot.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=bot;g.fillRect(0,H*0.85,W,H*0.15);
     for(i=0;i<15;i++){var clx=rnd()*W,cly=rnd()*H,cw=20+rnd()*60,ch=6+rnd()*13,a=(0.10+rnd()*0.20).toFixed(3);wrapEll(g,clx,cly,cw,ch,'rgba(255,255,255,'+a+')',W);}
     var lc=newTex(),lg=lc.getContext('2d');                              // night-lights layer: warm speckles clustered on land
-    for(i=0;i<blobs.length;i++){var B=blobs[i],n=12+((rnd()*18)|0);
-      for(j=0;j<n;j++){var a2=rnd()*6.28,rr=Math.sqrt(rnd()),lx=B[0]+Math.cos(a2)*B[2]*rr,ly=B[1]+Math.sin(a2)*B[3]*rr,al=(0.55+rnd()*0.45).toFixed(2);
-        for(var dd=-1;dd<=1;dd++){lg.beginPath();lg.arc(lx+dd*W,ly,rnd()*0.7+0.45,0,7);lg.fillStyle='rgba(255,216,150,'+al+')';lg.fill();}}}
+    for(i=0;i<blobs.length;i++){var B=blobs[i],n=26+((rnd()*34)|0);
+      for(j=0;j<n;j++){var a2=rnd()*6.28,rr=Math.sqrt(rnd()),lx=B[0]+Math.cos(a2)*B[2]*rr,ly=B[1]+Math.sin(a2)*B[3]*rr,al=(0.6+rnd()*0.4).toFixed(2);
+        for(var dd=-1;dd<=1;dd++){lg.beginPath();lg.arc(lx+dd*W,ly,rnd()*0.6+0.4,0,7);lg.fillStyle='rgba(255,216,150,'+al+')';lg.fill();}}}
     return {cv:cv,lights:lc};}
   function buildMoonTex(base){var cv=newTex(),W=cv.width,H=cv.height,g=cv.getContext('2d'),b=hexArr(base);
     var og=g.createLinearGradient(0,0,0,H);og.addColorStop(0,rgbs(shade(b,-0.18)));og.addColorStop(0.5,rgbs(shade(b,0.07)));og.addColorStop(1,rgbs(shade(b,-0.2)));
@@ -405,7 +405,7 @@
         var lam=nx*sr+(-nyd)*su+nz*sv,tf=lam+0.10;tf=tf<0?0:tf>0.22?1:tf/0.22;   // soft terminator band
         var br=ambient+(1-ambient)*tf;
         data[o]=td[to]*br;data[o+1]=td[to+1]*br;data[o+2]=td[to+2]*br;data[o+3]=255;
-        if(ld){var la=ld[to+3];if(la>0){var ad=(la/255)*(0.5+0.5*(1-tf));            // city lights: always-on (never fully off → no blink), brightest at night
+        if(ld){var la=ld[to+3];if(la>0){var ad=(la/255)*(0.18+0.82*(1-tf));          // city lights: night-weighted (Earth is static, so these never drift/blink)
           data[o]=cl255(data[o]+ld[to]*ad);data[o+1]=cl255(data[o+1]+ld[to+1]*ad);data[o+2]=cl255(data[o+2]+ld[to+2]*ad);}}
       }}
     bx.putImageData(img,0,0);
