@@ -625,7 +625,7 @@
   function frame(now){if(t0===null)t0=now;NOW=now;camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
     var total=lastHead(),ph=((now-t0)/drawMs())%1;if(ph<0)ph+=1;      // continuous loop
     var head=Math.max(1,Math.min(total,Math.round(ph*total)));
-    draw(head,camPhi,false,1,true);if(playing)requestAnimationFrame(frame);}   // build the trail from empty as the drone flies (no perpetual wrap), rebuild each loop
+    draw(head,camPhi,false);if(playing)requestAnimationFrame(frame);}   // continuous age-fading comet tail (smooth loop, no disappear/restart)
   function staticFull(){draw(lastHead(),camYaw,true);}
   function refreshStatic(){if(!playing)staticFull();}
   playEl.addEventListener('click',function(){playing=!playing;playEl.textContent=playing?'Pause':'Play';
