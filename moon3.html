@@ -610,7 +610,7 @@
     return {c:c,w:w,h:h};
   }
   var VIEW=document.getElementById('view');
-  function draw(head,phi,full,env){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:false,full:full,env:env});var f;
+  function draw(head,phi,full,env,grow){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:false,full:full,env:env,grow:grow});var f;
     var pv=P.periodMul>1?' · sat period <span class="scale">×'+(+P.periodMul).toFixed(0)+'</span> (visual)':'';
     if(P.mode==='mission'){ f='LEO → staging → TLI → LLO'+(P.roundTrip?' → staging → LEO':' capture')+' · <b>patched-conic schematic</b> · coil ×'+P.mag+pv+'.';
       if(P.roundTrip&&traj.loopOrbits){var mo=(traj.missionOrbits||0),lo=Math.round(traj.loopOrbits),pk=lo-mo;
@@ -625,7 +625,7 @@
   function frame(now){if(t0===null)t0=now;NOW=now;camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
     var total=lastHead(),ph=((now-t0)/drawMs())%1;if(ph<0)ph+=1;      // continuous loop
     var head=Math.max(1,Math.min(total,Math.round(ph*total)));
-    draw(head,camPhi,false);if(playing)requestAnimationFrame(frame);}   // no seam crossfade — tail fades by age only
+    draw(head,camPhi,false,1,true);if(playing)requestAnimationFrame(frame);}   // build the trail from empty as the drone flies (no perpetual wrap), rebuild each loop
   function staticFull(){draw(lastHead(),camYaw,true);}
   function refreshStatic(){if(!playing)staticFull();}
   playEl.addEventListener('click',function(){playing=!playing;playEl.textContent=playing?'Pause':'Play';
