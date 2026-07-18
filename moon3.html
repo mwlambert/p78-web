@@ -168,6 +168,7 @@
     <div class="exhead">Export</div>
     <div class="row">
       <label class="mini">Width px <input type="number" id="outw" value="1600" min="400" max="4000" step="100"></label>
+      <select class="sel" id="outfmt" aria-label="Output size"><option value="free">Fit · from Width</option><option value="ig1440">Portrait · 1080×1440 (IG)</option><option value="ig1350">Portrait · 1080×1350 (4:5)</option><option value="reel">Reel · 1080×1920 (9:16)</option><option value="sq">Square · 1080×1080</option></select>
       <label class="mini chk"><input type="checkbox" id="transp"> Transparent bg</label>
       <button class="btn" id="pngBtn">PNG</button>
       <button class="btn" id="svgBtn">SVG</button>
@@ -220,7 +221,7 @@
   function periodDays(a,mu){return TWO*Math.sqrt(a*a*a/mu)/DAY;}
 
   // ---- params + trajectory ----
-  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:18,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true};
+  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:36,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true};
   var traj={moon:[],sat:[],prim:[]}, satPeriod=0, satA=0;
   function computeOrbit(){
     var prim=P.primary, R=(prim==='moon'?R_M:R_E), mu=(prim==='moon'?muM:muE);
@@ -515,10 +516,14 @@
   var outwEl=document.getElementById('outw'),transpEl=document.getElementById('transp'),exNote=document.getElementById('exNote'),vmodeEl=document.getElementById('vmode');
   function outW(){return Math.max(400,Math.min(4000,parseInt(outwEl.value,10)||1600));}
   function panelH(w){return Math.round(w*1000/1080);}
+  var OUT_SIZES={ig1440:[1080,1440],ig1350:[1080,1350],reel:[1080,1920],sq:[1080,1080]};   // fixed export presets
+  function outSize(){var el=document.getElementById('outfmt'),f=el&&el.value;
+    if(f&&OUT_SIZES[f])return {w:OUT_SIZES[f][0],h:OUT_SIZES[f][1]};
+    var w=outW();return {w:w,h:panelH(w)};}
   function mkCanvas(w,h){var cv=document.createElement('canvas');cv.width=w;cv.height=h;return cv;}
   function download(blob,name){var u=URL.createObjectURL(blob),an=document.createElement('a');an.href=u;an.download=name;document.body.appendChild(an);an.click();setTimeout(function(){an.remove();URL.revokeObjectURL(u);},1500);}
   document.getElementById('pngBtn').addEventListener('click',function(){
-    var W=outW(),H=panelH(W),cv=mkCanvas(W,H);paint(cv.getContext('2d'),W,H,lastHead(),camPhi,{transparent:transpEl.checked,full:true});
+    var sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H);paint(cv.getContext('2d'),W,H,lastHead(),camPhi,{transparent:transpEl.checked,full:true});
     cv.toBlob(function(b){download(b,'p78-orbit-'+P.primary+'.png');exNote.textContent='PNG exported.';},'image/png');});
 
   // SVG still
@@ -527,7 +532,7 @@
   function svgBody(which,x,y,k,fb){var url=bodyData[which];if(!url)return fb;var d=DIA[which]*k*bscale();
     return '<image href="'+url+'" xlink:href="'+url+'" x="'+rnd(x-d/2)+'" y="'+rnd(y-d/2)+'" width="'+rnd(d)+'" height="'+rnd(d)+'"/>';}
   document.getElementById('svgBtn').addEventListener('click',function(){
-    var W=outW(),H=panelH(W),k=skf(W,H),pr=projector(W,H,camPhi),head=lastHead(),i,g='';
+    var sz=outSize(),W=sz.w,H=sz.h,k=skf(W,H),pr=projector(W,H,camPhi),head=lastHead(),i,g='';
     var std=rnd(Math.min(W,H)/260);
     var defs='<defs><filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="'+std+'" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
     var bg=transpEl.checked?'':'<rect width="'+W+'" height="'+H+'" fill="'+S.bg+'"/>';
@@ -549,7 +554,7 @@
   vidBtn.addEventListener('click',function(){
     if(recording)return;if(!window.MediaRecorder){exNote.textContent='Video recording not supported here.';return;}
     var mime=pickMime();if(!mime){exNote.textContent='No supported video codec.';return;}
-    var mode=vmodeEl.value,W=outW(),H=panelH(W),cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=lastHead();
+    var mode=vmodeEl.value,sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=lastHead();
     var LOOP_MS=12000,D=drawMs(),SEQ_MS=D+HOLD_MS+2400;
     var stream=cv.captureStream(60),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:14000000}),chunks=[];
     rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
