@@ -733,7 +733,7 @@
     var mime=pickMime();if(!mime){exNote.textContent='No supported video codec.';return;}
     var mode=vmodeEl.value,sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=lastHead();
     var LOOP_MS=12000,D=drawMs(),SEQ_MS=D+HOLD_MS+2400;
-    var stream=cv.captureStream(60),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:14000000}),chunks=[];
+    var stream=cv.captureStream(60),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:28000000}),chunks=[];  // high bitrate — line-art on black artifacts easily
     rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
     rec.onstop=function(){recording=false;vidBtn.textContent='Record';vidBtn.removeAttribute('disabled');
       var ext=mime.indexOf('mp4')>=0?'mp4':'webm';download(new Blob(chunks,{type:mime}),'p78-orbit-'+P.primary+'.'+ext);exNote.textContent='Video exported ('+ext+').';};
