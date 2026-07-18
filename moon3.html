@@ -795,7 +795,10 @@
 
   // ---- init ----
   (function(){var pr=PRESETS.mission,k;for(k in pr)P[k]=pr[k];presetEl.value='mission';})();   // default view = Mission LEO→TLI→LLO
-  loadFromHash();writeStyle();writeOrbit();compute();
+  loadFromHash();
+  if(/[?&]fleet=1/.test(location.search))P.showFleet=true;                          // URL flags (used by moon5.html)
+  if(/[?&]fleettrail=1/.test(location.search)){P.showFleet=true;P.fleetTrail=true;}
+  writeStyle();writeOrbit();compute();
   if(reduce){playEl.textContent='Play';staticFull();}else requestAnimationFrame(frame);
 })();
 </script>
