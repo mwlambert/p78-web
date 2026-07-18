@@ -542,7 +542,7 @@
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*k;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
     // body screen positions + depths, and an occlusion test (behind a body's disc)
-    var eP=pr([0,0,0]), mP=pr(traj.moon[head]), eR=9*k, mR=5.5*k;
+    var eP=pr([0,0,0]), mP=pr(traj.moon[head]), eR=6.5*k, mR=4*k;
     function occ(p){var dx=p[0]-eP[0],dy=p[1]-eP[1];
       if(dx*dx+dy*dy<eR*eR*0.82 && p[2]<eP[2])return true;
       dx=p[0]-mP[0];dy=p[1]-mP[1];return (dx*dx+dy*dy<mR*mR*0.82 && p[2]<mP[2]);}
