@@ -809,7 +809,8 @@
   if(/[?&]fleet=1/.test(location.search))P.showFleet=true;                          // URL flags (used by moon5.html)
   if(/[?&]fleettrail=1/.test(location.search)){P.showFleet=true;P.fleetTrail=true;}
   var _am=location.search.match(/[?&]anim=(\d+(?:\.\d+)?)/);if(_am)P.animDur=parseFloat(_am[1]);   // ?anim=NN → loop seconds
-  var _zm=location.search.match(/[?&]zoom=(\d+(?:\.\d+)?)/);if(_zm)zoom=Math.max(0.3,Math.min(40,parseFloat(_zm[1])));   // ?zoom=0.7 -> start framing (below 1 = further out, above 1 = closer)
+  if(EMBED)zoom=0.8;                                                                                                   // embed frames a touch wider (cleaner than filling the view); direct/interactive view stays at 1
+  var _zm=location.search.match(/[?&]zoom=(\d+(?:\.\d+)?)/);if(_zm)zoom=Math.max(0.3,Math.min(40,parseFloat(_zm[1])));   // ?zoom=0.7 overrides (below 1 = further out, above 1 = closer)
   writeStyle();writeOrbit();compute();
   if(reduce){playEl.textContent='Play';staticFull();}else requestAnimationFrame(frame);
 })();
