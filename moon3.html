@@ -459,19 +459,34 @@
   function bgDepth(c,W,H){var g=c.createRadialGradient(W/2,H*0.46,0,W/2,H*0.46,Math.max(W,H)*0.62);   // subtle cool center-lift for depth
     g.addColorStop(0,'rgba(30,42,70,0.22)');g.addColorStop(0.5,'rgba(14,20,36,0.12)');g.addColorStop(1,'rgba(0,0,0,0)');
     c.fillStyle=g;c.fillRect(0,0,W,H);}
-  var STARS=(function(){var a=[],seed=20240718,rnd=function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;},i,u,th,r;
+  var MWBN=(function(){var v=[0.32,0.44,0.84],m=Math.hypot(v[0],v[1],v[2]);return[v[0]/m,v[1]/m,v[2]/m];})();   // Milky Way band-plane normal
+  var STARS=(function(){var a=[],seed=20240718,rnd=function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;},i,u,th,r,bn=MWBN;
     for(i=0;i<1200;i++){u=rnd()*2-1;th=rnd()*TWO;r=Math.sqrt(1-u*u);                 // uniform 3D field
       a.push([r*Math.cos(th),r*Math.sin(th),u,rnd()*0.9+0.4,rnd()*0.5+0.18]);}       // dir(x,y,z), size, alpha
-    var bn=[0.32,0.44,0.84],bm=Math.hypot(bn[0],bn[1],bn[2]);bn=[bn[0]/bm,bn[1]/bm,bn[2]/bm];   // Milky Way band plane normal
-    for(i=0;i<2600;i++){u=rnd()*2-1;th=rnd()*TWO;r=Math.sqrt(1-u*u);var dx=r*Math.cos(th),dy=r*Math.sin(th),dz=u;
-      var dd=Math.abs(dx*bn[0]+dy*bn[1]+dz*bn[2]);if(dd>0.16)continue;                // keep only stars near the band
-      a.push([dx,dy,dz,rnd()*0.5+0.25,(rnd()*0.16+0.05)*(1-dd/0.16)]);}              // dense, dim, fading off mid-band
+    for(i=0;i<5200;i++){u=rnd()*2-1;th=rnd()*TWO;r=Math.sqrt(1-u*u);var dx=r*Math.cos(th),dy=r*Math.sin(th),dz=u;
+      var dd=Math.abs(dx*bn[0]+dy*bn[1]+dz*bn[2]);if(dd>0.19)continue;                // keep only stars near the band
+      a.push([dx,dy,dz,rnd()*0.55+0.28,(rnd()*0.24+0.09)*(1-dd/0.19)]);}             // dense, dim, fading off mid-band
     for(i=0;i<18;i++){u=rnd()*2-1;th=rnd()*TWO;r=Math.sqrt(1-u*u);
       a.push([r*Math.cos(th),r*Math.sin(th),u,rnd()*1.1+1.3,rnd()*0.25+0.55]);}      // a few brighter hero stars
     return a;})();
+  var MWNEB=(function(){var a=[],seed=99177,rnd=function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;},i,u,th,r,bn=MWBN;
+    for(i=0;i<130;i++){u=rnd()*2-1;th=rnd()*TWO;r=Math.sqrt(1-u*u);var dx=r*Math.cos(th),dy=r*Math.sin(th),dz=u;   // soft nebulosity clumps hugging the band
+      var dd=Math.abs(dx*bn[0]+dy*bn[1]+dz*bn[2]);if(dd>0.11)continue;
+      a.push([dx,dy,dz,rnd()*0.09+0.05,(rnd()*0.05+0.03)*(1-dd/0.11)]);}             // dir, size(·min(W,H)), alpha
+    return a;})();
   function drawStars(c,W,H,phi){                       // celestial sphere → rotates with the camera (yaw+tilt), no parallax
     var tl=S.tilt*DEG,ct=Math.cos(tl),st=Math.sin(tl),cph=Math.cos(phi),sph=Math.sin(phi);
-    var cx=W/2,cy=H/2,R=0.56*Math.hypot(W,H),rr=Math.max(0.4,Math.min(W,H)/1100),i,s,x,y,z,yv,zv;
+    var cx=W/2,cy=H/2,R=0.56*Math.hypot(W,H),rr=Math.max(0.4,Math.min(W,H)/1100),mwr=Math.min(W,H),i,s,x,y,z,yv,zv;
+    // Milky Way nebulosity: soft additive glow clumps along the band (drawn behind the point stars)
+    c.save();c.globalCompositeOperation='lighter';
+    for(i=0;i<MWNEB.length;i++){s=MWNEB[i];
+      x=s[0]*cph-s[1]*sph; y=s[0]*sph+s[1]*cph; z=s[2];
+      yv=y*ct-z*st; zv=y*st+z*ct; if(zv<-0.15)continue;
+      var nx=cx+x*R,ny=cy-yv*R,nrad=s[3]*mwr,na=s[4]*Math.min(1,0.4+zv);
+      var ng=c.createRadialGradient(nx,ny,0,nx,ny,nrad);
+      ng.addColorStop(0,'rgba(170,182,220,'+na.toFixed(3)+')');ng.addColorStop(1,'rgba(170,182,220,0)');
+      c.fillStyle=ng;c.beginPath();c.arc(nx,ny,nrad,0,7);c.fill();}
+    c.restore();
     c.fillStyle='#c9d3e6';
     for(i=0;i<STARS.length;i++){s=STARS[i];
       x=s[0]*cph-s[1]*sph; y=s[0]*sph+s[1]*cph; z=s[2];
