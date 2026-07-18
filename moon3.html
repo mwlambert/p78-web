@@ -336,8 +336,55 @@
   function bscale(){var el=document.getElementById('bscale');return el?(parseFloat(el.value)||1):1;}
   function skf(W,H){return Math.max(0.6,Math.min(W,H)/760);}
   function dot(c,x,y,r,hex,blur){c.fillStyle=hex;c.shadowColor=hex;c.shadowBlur=blur;c.beginPath();c.arc(x,y,r,0,7);c.fill();c.shadowBlur=0;}
+
+  // ---- procedural planet textures (tileable equirectangular, cached per color) ----
+  function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  function hexArr(h){h=(h||'#888888').replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+  function cl255(v){return v<0?0:v>255?255:v|0;}
+  function shade(a,f){return f>=0?[cl255(a[0]+(255-a[0])*f),cl255(a[1]+(255-a[1])*f),cl255(a[2]+(255-a[2])*f)]:[cl255(a[0]*(1+f)),cl255(a[1]*(1+f)),cl255(a[2]*(1+f))];}
+  function rgbs(a){return'rgb('+a[0]+','+a[1]+','+a[2]+')';}
+  function rgba(a,al){return'rgba('+a[0]+','+a[1]+','+a[2]+','+al+')';}
+  function newTex(){var cv=document.createElement('canvas');cv.width=512;cv.height=256;return cv;}
+  function wrapEll(g,cx,cy,rx,ry,fill,W){for(var d=-1;d<=1;d++){g.save();g.translate(cx+d*W,cy);g.beginPath();g.ellipse(0,0,rx,ry,0,0,7);g.fillStyle=fill;g.fill();g.restore();}}
+  function buildEarthTex(base){var cv=newTex(),W=cv.width,H=cv.height,g=cv.getContext('2d'),b=hexArr(base);
+    var og=g.createLinearGradient(0,0,0,H);og.addColorStop(0,rgbs(shade(b,-0.35)));og.addColorStop(0.5,rgbs(shade(b,0.06)));og.addColorStop(1,rgbs(shade(b,-0.4)));
+    g.fillStyle=og;g.fillRect(0,0,W,H);
+    var rnd=mulberry(1337),land=[63,125,58],land2=[92,154,74],coast=[183,160,97],i,j;
+    for(i=0;i<7;i++){var ccx=rnd()*W,ccy=40+rnd()*(H-80),parts=3+((rnd()*4)|0),spread=22+rnd()*42;
+      for(j=0;j<parts;j++){var ox=(rnd()-0.5)*spread*2,oy=(rnd()-0.5)*spread,rx=15+rnd()*30,ry=10+rnd()*20,r2=rnd();
+        wrapEll(g,ccx+ox,ccy+oy,rx,ry,rgbs(r2<0.28?coast:(r2<0.62?land2:land)),W);}}
+    var top=g.createLinearGradient(0,0,0,H*0.15);top.addColorStop(0,'rgba(255,255,255,0.95)');top.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=top;g.fillRect(0,0,W,H*0.15);
+    var bot=g.createLinearGradient(0,H,0,H*0.85);bot.addColorStop(0,'rgba(255,255,255,0.95)');bot.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=bot;g.fillRect(0,H*0.85,W,H*0.15);
+    for(i=0;i<15;i++){var clx=rnd()*W,cly=rnd()*H,cw=20+rnd()*60,ch=6+rnd()*13,a=(0.10+rnd()*0.20).toFixed(3);wrapEll(g,clx,cly,cw,ch,'rgba(255,255,255,'+a+')',W);}
+    return cv;}
+  function buildMoonTex(base){var cv=newTex(),W=cv.width,H=cv.height,g=cv.getContext('2d'),b=hexArr(base);
+    var og=g.createLinearGradient(0,0,0,H);og.addColorStop(0,rgbs(shade(b,-0.18)));og.addColorStop(0.5,rgbs(shade(b,0.07)));og.addColorStop(1,rgbs(shade(b,-0.2)));
+    g.fillStyle=og;g.fillRect(0,0,W,H);
+    var rnd=mulberry(9021),i,d;
+    for(i=0;i<6;i++){var mx=rnd()*W,my=30+rnd()*(H-60),rx=26+rnd()*44,ry=18+rnd()*28;wrapEll(g,mx,my,rx,ry,rgba(shade(b,-0.3),0.5),W);}
+    for(i=0;i<44;i++){var cx=rnd()*W,cy=rnd()*H,r=2+rnd()*8;for(d=-1;d<=1;d++){var px=cx+d*W;
+      g.beginPath();g.arc(px,cy,r,0,7);g.fillStyle=rgbs(shade(b,0.12));g.fill();
+      g.beginPath();g.arc(px,cy,r*0.78,0,7);g.fillStyle=rgbs(shade(b,-0.16));g.fill();
+      g.beginPath();g.arc(px-r*0.18,cy-r*0.18,r*0.5,0,7);g.fillStyle=rgbs(shade(b,0.05));g.fill();}}
+    return cv;}
+  var texCache={earth:null,moon:null,ek:null,mk:null};
+  function earthTex(){if(texCache.ek!==S.earth){texCache.earth=buildEarthTex(S.earth);texCache.ek=S.earth;}return texCache.earth;}
+  function moonTex(){if(texCache.mk!==S.moon){texCache.moon=buildMoonTex(S.moon);texCache.mk=S.moon;}return texCache.moon;}
+  function drawGlobe(c,x,y,R,tex,rot,isEarth,hex,blur,k){
+    if(blur>0){c.save();c.shadowColor=hex;c.shadowBlur=blur;c.fillStyle=hex;c.beginPath();c.arc(x,y,R*0.9,0,7);c.fill();c.restore();}
+    var tw=tex.width,sc=(2*R)/tw,frac=((rot%1)+1)%1,startX=x-R-frac*tw*sc,xx;
+    c.save();c.beginPath();c.arc(x,y,R,0,7);c.clip();
+    for(xx=startX;xx<x+R;xx+=tw*sc)c.drawImage(tex,xx,y-R,tw*sc,2*R);
+    var lg=c.createRadialGradient(x-R*0.4,y-R*0.45,R*0.1,x,y,R*1.15);   // day/night, light from upper-left
+    lg.addColorStop(0,'rgba(255,255,255,0.10)');lg.addColorStop(0.45,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0.72)');
+    c.fillStyle=lg;c.beginPath();c.arc(x,y,R,0,7);c.fill();c.restore();
+    if(isEarth){var ag=c.createRadialGradient(x,y,R*0.86,x,y,R*1.18);   // atmosphere limb glow
+      ag.addColorStop(0,'rgba(140,200,255,0)');ag.addColorStop(0.82,'rgba(140,200,255,0)');ag.addColorStop(0.92,'rgba(150,205,255,0.35)');ag.addColorStop(1,'rgba(150,205,255,0)');
+      c.fillStyle=ag;c.beginPath();c.arc(x,y,R*1.18,0,7);c.fill();}}
+
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k,lit){var im=bodyImg[which];
     if(im&&im.complete&&im.naturalWidth){var d=DIA[which]*k*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);return;}
+    if(which==='earth'||which==='moon'){drawGlobe(c,x,y,dotR,which==='earth'?earthTex():moonTex(),NOW*(which==='earth'?0.00001:0.0000016),which==='earth',hex,blur,k);return;}
     if(lit){                                     // shaded sphere (fixed light from upper-left)
       if(blur>0){c.save();c.shadowColor=hex;c.shadowBlur=blur;c.fillStyle=hex;c.beginPath();c.arc(x,y,dotR*0.85,0,7);c.fill();c.restore();}
       var g=c.createRadialGradient(x-dotR*0.42,y-dotR*0.5,dotR*0.12,x,y,dotR*1.04);
@@ -384,8 +431,12 @@
   // one companion sat in the vehicle's LEO orbit, one in its LLO orbit (same rings, coplanar)
   var AMBS=[{body:0,phase:1.1,rate:0.00060},{body:1,phase:2.4,rate:0.00095}];
   // fading comet tail behind the head (wraps the loop seam), or the whole path when full
-  function trailPaint(c,pts,head,total,rgb,k,full,occ,env){env=env==null?1:env;c.lineWidth=1.15*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
+  function trailPaint(c,pts,head,total,rgb,k,full,occ,env,grow){env=env==null?1:env;c.lineWidth=1.15*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
     if(full){for(i=1;i<=total;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;c.strokeStyle='rgba('+rgb+',0.5)';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
+    if(grow){var lead=Math.max(1,total*0.16);                 // reveal: draw start→head, persistent trail + bright leading edge (no wrap → starts empty, builds to full)
+      for(i=1;i<=head;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;
+        al=(0.30+0.55*Math.max(0,1-(head-i)/lead))*env;c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';
+        c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
     var TAIL=Math.max(40,Math.round(total*0.62)),j;
     for(j=0;j<TAIL;j++){cur=((head-j)%total+total)%total;prev=((head-j-1)%total+total)%total;
       if(Math.abs(cur-prev)!==1)continue;                 // skip only the wrap-seam connector (no straight line across the loop)
@@ -407,7 +458,7 @@
     bodyOrDot(c,eP[0],eP[1],'earth',eR,S.earth,16*k*S.glow,k,'#b7ccff');
     // satellite trail (fading tail while playing; whole path when paused / still export)
     var spts=[];for(i=0;i<=total;i++)spts.push(pr(satPlot(i)));
-    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),k,o.full,occ,o.env);
+    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),k,o.full,occ,o.env,o.grow);
     bodyOrDot(c,mP[0],mP[1],'moon',mR,S.moon,8*k*S.glow,k,'#eef2f8');   // Moon body
     // ambient satellites — one on the LEO ring, one on the LLO ring (no trails)
     if(P.showSats){var j,A,bp,rad,inc,ang,uu,asp;for(j=0;j<AMBS.length;j++){A=AMBS[j];
@@ -566,7 +617,7 @@
   vidBtn.addEventListener('click',function(){
     if(recording)return;if(!window.MediaRecorder){exNote.textContent='Video recording not supported here.';return;}
     var mime=pickMime();if(!mime){exNote.textContent='No supported video codec.';return;}
-    var mode=vmodeEl.value,W=outW(),H=panelH(W),cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=lastHead();
+    var mode=vmodeEl.value,sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=lastHead();
     var LOOP_MS=12000,D=drawMs(),SEQ_MS=D+HOLD_MS+2400;
     var stream=cv.captureStream(60),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:14000000}),chunks=[];
     rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
@@ -578,7 +629,7 @@
     function tick(now){if(t0r===null){t0r=now;rec.start();}NOW=now;var t=now-t0r,done=false,head,phi;
       if(mode==='loop'){phi=S.drift*Math.sin(TWO*(t/LOOP_MS));head=mh;if(t>=LOOP_MS)done=true;}
       else{phi=S.drift*Math.sin(now*CAM_W);head=t<D?Math.max(2,Math.round((t/D)*mh)):mh;if(t>=SEQ_MS)done=true;}
-      paint(cx,W,H,head,phi,{transparent:false});if(done)rec.stop();else requestAnimationFrame(tick);}
+      paint(cx,W,H,head,phi,{transparent:false,grow:mode!=='loop'});if(done)rec.stop();else requestAnimationFrame(tick);}
     requestAnimationFrame(tick);});
 
   // live export readout — exact dims + mode + clip length, so what you'll get is never a guess
