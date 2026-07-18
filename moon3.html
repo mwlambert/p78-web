@@ -402,10 +402,10 @@
         if(r2>1){data[o+3]=0;continue;}
         var nz=Math.sqrt(1-r2),u=((px/d)+frac)%1;if(u<0)u+=1;var v=nyd*0.5+0.5;
         var tx=(u*tw)|0,ty=(v*th)|0;if(ty<0)ty=0;if(ty>=th)ty=th-1;if(tx>=tw)tx=tw-1;var to=(ty*tw+tx)*4;
-        var lam=nx*sr+(-nyd)*su+nz*sv,tf=lam+0.10;tf=tf<0?0:tf>0.22?1:tf/0.22;   // soft terminator band
+        var lam=nx*sr+(-nyd)*su+nz*sv,tf=lam+0.14;tf=tf<0?0:tf>0.28?1:tf/0.28;   // soft (wide) terminator band → gentle light fade, less flicker
         var br=ambient+(1-ambient)*tf;
         data[o]=td[to]*br;data[o+1]=td[to+1]*br;data[o+2]=td[to+2]*br;data[o+3]=255;
-        if(ld){var la=ld[to+3];if(la>0){var ad=(la/255)*(0.18+0.82*(1-tf));          // city lights: night-weighted (Earth is static, so these never drift/blink)
+        if(ld){var la=ld[to+3];if(la>0){var ad=(la/255)*(0.45+0.55*(1-tf));          // city lights: small day/night swing → lights barely change crossing the terminator (less flicker)
           data[o]=cl255(data[o]+ld[to]*ad);data[o+1]=cl255(data[o+1]+ld[to+1]*ad);data[o+2]=cl255(data[o+2]+ld[to+2]*ad);}}
       }}
     bx.putImageData(img,0,0);
@@ -421,7 +421,7 @@
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k,lit,sCam){var im=bodyImg[which];
     if(im&&im.complete&&im.naturalWidth){var d=DIA[which]*k*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);return;}
     if(which==='earth'||which==='moon'){var T=which==='earth'?earthTex():moonTex();
-      drawGlobe(c,x,y,dotR,T.day,T.lights,NOW*(which==='earth'?0.00001:0.0000016),which==='earth',hex,blur,sCam||[-0.6,0.5,0.6]);return;}
+      drawGlobe(c,x,y,dotR,T.day,T.lights,NOW*(which==='earth'?0.0000038:0.0000016),which==='earth',hex,blur,sCam||[-0.6,0.5,0.6]);return;}   // slow Earth spin → lights cross the terminator gently
     if(lit){                                     // shaded sphere (fixed light from upper-left)
       if(blur>0){c.save();c.shadowColor=hex;c.shadowBlur=blur;c.fillStyle=hex;c.beginPath();c.arc(x,y,dotR*0.85,0,7);c.fill();c.restore();}
       var g=c.createRadialGradient(x-dotR*0.42,y-dotR*0.5,dotR*0.12,x,y,dotR*1.04);
