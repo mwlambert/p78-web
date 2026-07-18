@@ -556,17 +556,19 @@
     if(P.showFleet && P.mode==='mission'){var fd,foff,fa,ca,sa,fidx,fq,fp,rt=traj.rate||0,
         mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=12,
         cum=traj.cum,Lm=(P.fleetDist&&cum)?cum[Math.min(cum.length-1,mSamp)]:0,
-        srgb=hexRGB(S.sat),ti,tq,tsp,TSTEP=Math.max(2,Math.round(mSamp/500));
+        srgb=hexRGB(S.sat),TL=Math.max(40,Math.round(total*0.4)),jj,ci2,pi2,qb,pb2,pa2,al2;
       for(fd=1;fd<=NF;fd++){
         if(P.fleetDist&&cum&&Lm>0){foff=arcIndex(fd/(NF+1)*Lm,cum,mSamp);}   // even by path length → more vehicles in transit
         else{foff=Math.round(fd/(NF+1)*mSamp);}                              // even by mission time → more parked at the Moon
         fa=rt*foff;ca=Math.cos(fa);sa=Math.sin(fa);
-        if(P.fleetTrail){c.strokeStyle='rgba('+srgb+',0.09)';c.lineWidth=1*k;c.beginPath();   // faint route (fans around Earth)
-          for(ti=0;ti<=mSamp;ti+=TSTEP){tq=satPlot(ti);tsp=pr([tq[0]*ca-tq[1]*sa, tq[0]*sa+tq[1]*ca, tq[2]]);
-            if(ti===0)c.moveTo(tsp[0],tsp[1]);else c.lineTo(tsp[0],tsp[1]);}
-          c.stroke();}
-        fidx=((head-foff)%total+total)%total;fq=satPlot(fidx);
-        fp=pr([fq[0]*ca-fq[1]*sa, fq[0]*sa+fq[1]*ca, fq[2]]);
+        fidx=((head-foff)%total+total)%total;
+        if(P.fleetTrail){c.lineWidth=1*k;pa2=null;pi2=-9;                    // fading comet tail that follows the escort (age-only, like the main drone)
+          for(jj=0;jj<TL;jj+=2){ci2=((fidx-jj)%total+total)%total;
+            qb=satPlot(ci2);pb2=pr([qb[0]*ca-qb[1]*sa, qb[0]*sa+qb[1]*ca, qb[2]]);
+            if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5;      // skip the wrap-seam connector
+              c.strokeStyle='rgba('+srgb+','+al2.toFixed(3)+')';c.beginPath();c.moveTo(pa2[0],pa2[1]);c.lineTo(pb2[0],pb2[1]);c.stroke();}
+            pa2=pb2;pi2=ci2;}}
+        fq=satPlot(fidx);fp=pr([fq[0]*ca-fq[1]*sa, fq[0]*sa+fq[1]*ca, fq[2]]);
         if(occ(fp))continue;bodyOrDot(c,fp[0],fp[1],'sat',2.0*k,S.sat,6*k*S.glow,k);}}   // same size as the main drone
     // hoppers: Moon surface ↔ LLO sat, Earth surface ↔ support sat
     if(P.showHop){
