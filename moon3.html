@@ -301,12 +301,15 @@
       // ---- pad the loop to a WHOLE number of Moon orbits: drone parks in LEO while the Moon
       //      finishes its current orbit, so at the seam the Moon (and drone) is back at the start → no skip ----
       var lastIdx=moon.length-1, curSweep=rate*lastIdx;
+      traj.missionOrbits=curSweep/TWO;                              // Moon orbits the mission itself spans
       var padN=Math.round((Math.ceil(curSweep/TWO-1e-6)*TWO-curSweep)/rate);
       var hold=all[all.length-1];                                   // drone held at LEO (+x, tiny at this zoom)
       for(i=1;i<=padN;i++){gi=lastIdx+i;nu=startNu+rate*gi;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);
         moon.push(mp);prim.push([0,0,0]);all.push(hold);}
     }
     traj.moon=moon;traj.prim=prim;traj.sat=all;
+    traj.loopOrbits=rate>0?rate*(moon.length-1)/TWO:0;             // whole Moon orbits per loop (round trip)
+    if(!P.roundTrip)traj.missionOrbits=traj.loopOrbits;
   }
   function computeFraming(){                          // bounding sphere of what's drawn → auto-fit + centre
     var n=traj.sat.length,i,cx=0,cy=0,cz=0,acc=[],p;
@@ -513,7 +516,9 @@
   var VIEW=document.getElementById('view');
   function draw(head,phi,full,env){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:false,full:full,env:env});var f;
     var pv=P.periodMul>1?' · sat period <span class="scale">×'+(+P.periodMul).toFixed(0)+'</span> (visual)':'';
-    if(P.mode==='mission') f='LEO → staging → TLI → LLO'+(P.roundTrip?' → staging → LEO':' capture')+' · <b>patched-conic schematic</b> · coil ×'+P.mag+pv+'.';
+    if(P.mode==='mission'){ f='LEO → staging → TLI → LLO'+(P.roundTrip?' → staging → LEO':' capture')+' · <b>patched-conic schematic</b> · coil ×'+P.mag+pv+'.';
+      if(P.roundTrip&&traj.loopOrbits){var mo=(traj.missionOrbits||0),lo=Math.round(traj.loopOrbits),pk=lo-mo;
+        f+=' <span class="scale">loops every '+lo+' Moon orbit'+(lo>1?'s':'')+'</span> (mission '+mo.toFixed(2)+' + '+pk.toFixed(2)+' parked).';} }
     else f=(P.primary==='moon'?'Satellite coils around the Moon as the Moon orbits Earth. ':'Satellite orbits Earth. ')
       +'Period '+(satPeriod*24).toFixed(2)+' h · ×'+P.mag+pv+'.';
     document.getElementById('foot').innerHTML=f;}
