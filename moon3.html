@@ -298,6 +298,13 @@
       for(kk=0;kk<rarcs.length;kk++){var rc=rarcs[kk],stR=Math.max(80,Math.round(2600*wr[kk]/sumR));
         for(j2=0;j2<stR;j2++){pR=rot(conic(rc.a,rc.e,trueAnom(rc.M0+(rc.M1-rc.M0)*j2/stR,rc.e)));
           gidx++;nu=startNu+rate*gidx;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(pR);}}
+      // ---- pad the loop to a WHOLE number of Moon orbits: drone parks in LEO while the Moon
+      //      finishes its current orbit, so at the seam the Moon (and drone) is back at the start → no skip ----
+      var lastIdx=moon.length-1, curSweep=rate*lastIdx;
+      var padN=Math.round((Math.ceil(curSweep/TWO-1e-6)*TWO-curSweep)/rate);
+      var hold=all[all.length-1];                                   // drone held at LEO (+x, tiny at this zoom)
+      for(i=1;i<=padN;i++){gi=lastIdx+i;nu=startNu+rate*gi;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);
+        moon.push(mp);prim.push([0,0,0]);all.push(hold);}
     }
     traj.moon=moon;traj.prim=prim;traj.sat=all;
   }
