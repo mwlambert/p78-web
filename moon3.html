@@ -242,7 +242,7 @@
     satA=R+P.alt; satPeriod=periodDays(satA,mu);       // real period (for display)
     var Tvis=satPeriod*P.periodMul;                     // visual period (fewer laps) — schematic only
     var N=8000, i,t,mp,pp,sr;
-    traj.moon=[];traj.sat=[];traj.prim=[];
+    traj.moon=[];traj.sat=[];traj.prim=[];traj.tel=null;   // telemetry only defined for mission mode
     for(i=0;i<=N;i++){
       t=P.span*i/N;
       mp=keplerPos(aMoon,eMoon,iMoon,0,0,trueAnom(TWO*t/Tmoon,eMoon));
@@ -268,21 +268,28 @@
     for(kk=1;kk<=Nr;kk++){rap=stageR*Math.pow(apoTgt/stageR,kk/(Nr+1));var Erk=elt(stageR,rap);                  // apogee-raising FROM the staging orbit (full revs)
       arcs.push({a:Erk.a,e:Erk.e,M0:0,M1:TWO,dur:periodDays(Erk.a,muE)});}
     var Et=elt(stageR,apoTgt); arcs.push({a:Et.a,e:Et.e,M0:0,M1:Math.PI,dur:0.5*periodDays(Et.a,muE)});          // TLI: stage(+x) → Moon(-x)
-    var sat=[],sumW=0,wk=[],j;
+    var sat=[],satTel=[],sumW=0,wk=[],j,tRun=0,nuS;                         // satTel: real orbital state per outbound sample (telemetry)
+    var arcMeta=[{ph:'LEO',label:'LEO parking'},{ph:'LEO',label:'Raise to staging'},{ph:'LEO',label:'Staging orbit'}];
+    for(kk=1;kk<=Nr;kk++)arcMeta.push({ph:'LEO',label:'Apogee raising'});
+    arcMeta.push({ph:'TLI',label:'Trans-lunar injection'});
     for(kk=0;kk<arcs.length;kk++){wk[kk]=Math.sqrt(arcs[kk].dur);sumW+=wk[kk];}
-    for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(80,Math.round(2600*wk[kk]/sumW));
-      for(j=0;j<st;j++)sat.push(conic(ar.a,ar.e,trueAnom(ar.M0+(ar.M1-ar.M0)*j/st,ar.e)));}
+    for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(80,Math.round(2600*wk[kk]/sumW)),dt=ar.dur/st,mt=arcMeta[kk];
+      for(j=0;j<st;j++){nuS=trueAnom(ar.M0+(ar.M1-ar.M0)*j/st,ar.e);sat.push(conic(ar.a,ar.e,nuS));
+        satTel.push({ph:mt.ph,label:mt.label,body:'earth',r:ar.a*(1-ar.e*ar.e)/(1+ar.e*Math.cos(nuS)),a:ar.a,e:ar.e,t:tRun});tRun+=dt;}}
     sat.push(conic(Et.a,Et.e,Math.PI));   // exact TLI apogee = coil near-edge
+    satTel.push({ph:'TLI',label:'Trans-lunar injection',body:'earth',r:Et.a*(1+Et.e),a:Et.a,e:Et.e,t:tRun});
     var arrival=sat.length-1;
     var T_earth=0; for(kk=0;kk<arcs.length;kk++)T_earth+=arcs[kk].dur;
     var coast=Math.max(0.1,P.coast);
     var T_llo=periodDays(r_llo,muM), coils=Math.max(1,coast*Tmoon/(T_llo*P.periodMul));      // visual coil count
     var earthSweep=TWO*T_earth/Tmoon, rate=earthSweep/arrival;                                // uniform Moon rate/sample → no jump
     var llo=Math.max(240,Math.min(16000,Math.round(coast*TWO/rate)));                         // LLO samples ∝ real coast duration
-    var startNu=Math.PI-earthSweep, moon=[],prim=[],all=[],i,nu,mp,lc,frac,gi;
-    for(i=0;i<=arrival;i++){nu=startNu+rate*i;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(sat[i]);}
-    for(i=1;i<=llo;i++){gi=arrival+i;nu=startNu+rate*gi;frac=i/llo;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push(mp);
-      lc=keplerPos(r_llo,0,incL,0,0,TWO*coils*frac);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);}   // LLO coil (magnified)
+    var startNu=Math.PI-earthSweep, moon=[],prim=[],all=[],tel=[],i,nu,mp,lc,frac,gi;
+    for(i=0;i<=arrival;i++){nu=startNu+rate*i;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(sat[i]);tel.push(satTel[i]);}
+    var coilDur=coast*Tmoon, dtC=coilDur/Math.max(1,llo);                    // real time in LLO ≈ coast Moon-orbits
+    for(i=1;i<=llo;i++){gi=arrival+i;nu=startNu+rate*gi;frac=i/llo;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push(mp);tRun+=dtC;
+      lc=keplerPos(r_llo,0,incL,0,0,TWO*coils*frac);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);   // LLO coil (magnified)
+      tel.push({ph:'LLO',label:'Low lunar orbit',body:'moon',r:r_llo,a:r_llo,e:0,t:tRun});}
     // ---- optional return: TEI (Moon → Earth) → apogee-lowering → LEO capture ----
     if(P.roundTrip){
       var exitPt=all[all.length-1];                                  // the actual last coil point
@@ -304,21 +311,25 @@
       rarcs.push({a:stageR,e:0,M0:0,M1:TWO*nStage+Math.PI,dur:(nStage+0.5)*periodDays(stageR,muE)}); // staging circular (+x → -x)  [RDV]
       rarcs.push({a:Ed.a,e:Ed.e,M0:Math.PI,M1:TWO,dur:0.5*periodDays(Ed.a,muE)});                    // descend: stage(-x apo) → LEO(+x)
       rarcs.push({a:r_leo,e:0,M0:0,M1:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)});                      // LEO parking
-      var sumR=0,wr=[],gidx=arrival+llo,j2,pR;
+      var sumR=0,wr=[],gidx=arrival+llo,j2,pR,nuR;
+      var rMeta=[{ph:'TLI',label:'Trans-Earth injection'}];
+      for(kk=Nr;kk>=1;kk--)rMeta.push({ph:'LEO',label:'Apogee lowering'});
+      rMeta.push({ph:'LEO',label:'Staging orbit'});rMeta.push({ph:'LEO',label:'Descend to LEO'});rMeta.push({ph:'LEO',label:'LEO parking'});
       for(kk=0;kk<rarcs.length;kk++){wr[kk]=Math.sqrt(rarcs[kk].dur);sumR+=wr[kk];}
-      for(kk=0;kk<rarcs.length;kk++){var rc=rarcs[kk],stR=Math.max(80,Math.round(2600*wr[kk]/sumR));
-        for(j2=0;j2<stR;j2++){pR=rot(conic(rc.a,rc.e,trueAnom(rc.M0+(rc.M1-rc.M0)*j2/stR,rc.e)));
-          gidx++;nu=startNu+rate*gidx;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(pR);}}
+      for(kk=0;kk<rarcs.length;kk++){var rc=rarcs[kk],stR=Math.max(80,Math.round(2600*wr[kk]/sumR)),dtR=rc.dur/stR,rmt=rMeta[kk];
+        for(j2=0;j2<stR;j2++){nuR=trueAnom(rc.M0+(rc.M1-rc.M0)*j2/stR,rc.e);pR=rot(conic(rc.a,rc.e,nuR));
+          gidx++;nu=startNu+rate*gidx;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(pR);tRun+=dtR;
+          tel.push({ph:rmt.ph,label:rmt.label,body:'earth',r:rc.a*(1-rc.e*rc.e)/(1+rc.e*Math.cos(nuR)),a:rc.a,e:rc.e,t:tRun});}}
       // ---- pad the loop to a WHOLE number of Moon orbits: drone parks in LEO while the Moon
       //      finishes its current orbit, so at the seam the Moon (and drone) is back at the start → no skip ----
       var lastIdx=moon.length-1, curSweep=rate*lastIdx;
       traj.missionOrbits=curSweep/TWO;                              // Moon orbits the mission itself spans
       var padN=Math.round((Math.ceil(curSweep/TWO-1e-6)*TWO-curSweep)/rate);
-      var hold=all[all.length-1];                                   // drone held at LEO (+x, tiny at this zoom)
-      for(i=1;i<=padN;i++){gi=lastIdx+i;nu=startNu+rate*gi;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);
-        moon.push(mp);prim.push([0,0,0]);all.push(hold);}
+      var hold=all[all.length-1],dtP=rate/TWO*Tmoon;                // drone held at LEO (+x, tiny at this zoom); pad advances Moon-time
+      for(i=1;i<=padN;i++){gi=lastIdx+i;nu=startNu+rate*gi;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);tRun+=dtP;
+        moon.push(mp);prim.push([0,0,0]);all.push(hold);tel.push({ph:'LEO',label:'Parked (LEO)',body:'earth',r:r_leo,a:r_leo,e:0,t:tRun});}
     }
-    traj.moon=moon;traj.prim=prim;traj.sat=all;
+    traj.moon=moon;traj.prim=prim;traj.sat=all;traj.tel=tel;
     traj.loopOrbits=rate>0?rate*(moon.length-1)/TWO:0;             // whole Moon orbits per loop (round trip)
     if(!P.roundTrip)traj.missionOrbits=traj.loopOrbits;
     traj.spd=rate>0?(TWO/Tmoon)/rate:80;                           // trajectory samples per day (for escort-drone offsets)
@@ -560,7 +571,7 @@
       if(A.body===0){bp=[0,0,0];rad=STAGE_R;inc=P.inc*DEG;}                                             // support sat on the staging orbit (the drone rendezvous ring)
       else{bp=traj.moon[head];rad=P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt));inc=(P.mode==='mission'?P.lloInc:P.inc)*DEG;} // LLO ring (on the coil)
       ang=A.phase+A.rate*NOW;uu=keplerPos(rad,0,inc,0,0,ang);
-      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*kl,'#fff2cf','#e6bf5c',MARK.depot*0.7*kl*S.glow);}}   // depot size = MARK.depot (constant kl scale)
+      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*kl,'#e6bf5c','#e6bf5c',MARK.depot*0.7*kl*S.glow);}}   // depot = flat gold (no bright core); size = MARK.depot
     // escort drones — a convoy: each flies the IDENTICAL mission (to the real Moon and back), spread
     // across the trip so some are outbound, some at the Moon, some inbound. Rotated forward by the Moon's
     // motion over each offset so every escort rendezvous with the current Moon (undrawn arcs fan around Earth).
@@ -615,7 +626,7 @@
     return {c:c,w:w,h:h};
   }
   var VIEW=document.getElementById('view');
-  function draw(head,phi,full,env,grow){var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:false,full:full,env:env,grow:grow});var f;
+  function draw(head,phi,full,env,grow){telHead=head;var g=setup(VIEW);paint(g.c,g.w,g.h,head,phi,{transparent:false,full:full,env:env,grow:grow});var f;
     var pv=P.periodMul>1?' · sat period <span class="scale">×'+(+P.periodMul).toFixed(0)+'</span> (visual)':'';
     if(P.mode==='mission'){ f='LEO → staging → TLI → LLO'+(P.roundTrip?' → staging → LEO':' capture')+' · <b>patched-conic schematic</b> · coil ×'+P.mag+pv+'.';
       if(P.roundTrip&&traj.loopOrbits){var mo=(traj.missionOrbits||0),lo=Math.round(traj.loopOrbits),pk=lo-mo;
@@ -630,9 +641,33 @@
   function frame(now){if(t0===null)t0=now;NOW=now;camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
     var total=lastHead(),ph=((now-t0)/drawMs())%1;if(ph<0)ph+=1;      // continuous loop
     var head=Math.max(1,Math.min(total,Math.round(ph*total)));
-    draw(head,camPhi,false);if(playing)requestAnimationFrame(frame);}   // continuous age-fading comet tail (smooth loop, no disappear/restart)
+    draw(head,camPhi,false);
+    if(now-lastTel>=TEL_MS){lastTel=now;emitTel(head);}                // throttled telemetry to the host page (~8 Hz)
+    if(playing)requestAnimationFrame(frame);}   // continuous age-fading comet tail (smooth loop, no disappear/restart)
   function staticFull(){draw(lastHead(),camYaw,true);}
   function refreshStatic(){if(!playing)staticFull();}
+
+  // ---- telemetry: real mission state for a host-side HUD (postMessage across the iframe; window.p78 same-origin) ----
+  var TEL_VERSION='1.0', telHead=0, lastTel=0, TEL_MS=125, onTelCb=null;
+  function telemetry(head){
+    var t=traj.tel; if(P.mode!=='mission'||!t||!t.length)return null;
+    var n=t.length-1, h=Math.max(0,Math.min(n,Math.round(head||0))), r=t[h];
+    var mu=r.body==='moon'?muM:muE, R=r.body==='moon'?R_M:R_E;
+    var v=Math.sqrt(Math.max(0,mu*(2/r.r-1/r.a)));                    // vis-viva speed, km/s
+    var sw=traj.sat[h], mw=traj.moon[h];
+    var dM=r.body==='moon'?r.r:Math.hypot(sw[0]-mw[0],sw[1]-mw[1],sw[2]-mw[2]);   // real km to the Moon (LLO uses true r_llo, not the magnified render)
+    return {phase:r.ph,label:r.label,body:r.body,progress:n>0?h/n:0,
+      speed:Math.round(v*1000)/1000, altitude:Math.round(r.r-R), distToMoon:Math.round(dM),
+      apoapsis:Math.round(r.a*(1+r.e)-R), periapsis:Math.round(r.a*(1-r.e)-R),
+      t:Math.round(r.t*100)/100, version:TEL_VERSION};                // speed km/s · altitude/apo/peri km · t = mission-elapsed days (real)
+  }
+  function emitTel(head){var p=telemetry(head);if(!p)return;
+    try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'p78:telemetry',data:p},'*');}catch(e){}
+    if(onTelCb){try{onTelCb(p);}catch(e){}}}
+  try{window.addEventListener('message',function(ev){if(ev&&ev.data&&ev.data.type==='p78:getState'){   // one-shot read from the host
+    var p=telemetry(telHead);try{(ev.source||window.parent).postMessage({type:'p78:telemetry',data:p},'*');}catch(e){}}});
+    window.p78={getTelemetry:function(){return telemetry(telHead);},onTelemetry:function(cb){onTelCb=cb;},version:TEL_VERSION};   // same-origin convenience
+  }catch(e){}
   playEl.addEventListener('click',function(){playing=!playing;playEl.textContent=playing?'Pause':'Play';
     playEl.setAttribute('aria-label',(playing?'Pause':'Play')+' animation');if(playing){t0=null;holdUntil=0;requestAnimationFrame(frame);}});
   window.addEventListener('resize',function(){if(!playing)staticFull();});
