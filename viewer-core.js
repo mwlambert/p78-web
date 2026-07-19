@@ -37,6 +37,7 @@ export function createViewer(canvas, config) {
   var cxFrac = config.cx!=null ? config.cx : 0.5;      // scene centre as a fraction of W/H (default 0.5 = middle).
   var cyFrac = config.cy!=null ? config.cy : 0.5;      // e.g. cy:0.7 drops the scene into the lower gap behind copy.
   var bscaleVal = config.bscale!=null ? config.bscale : 1;
+  var markScale = config.markScale!=null ? config.markScale : 1;        // host multiplier for the depot/rocket/drone dot sizes (e.g. 0.4 on a zoomed-out backdrop). Strokes use lw.
   var interactive = config.interactive !== false;                       // default true; site backdrop passes false
   var wheelModifierOnly = !!config.wheelModifierOnly;                    // for interactive embeds inside a scrolling page
   var onCamera = typeof config.onCamera==='function' ? config.onCamera : null;
@@ -267,7 +268,7 @@ export function createViewer(canvas, config) {
     var P2=[O[0]-ring*0.5*th[0],O[1]-ring*0.5*th[1],O[2]-ring*0.5*th[2]];
     function bez(u){var m=1-u,a=m*m*m,b=3*m*m*u,d=3*m*u*u,e=u*u*u;
       return [a*P0[0]+b*P1[0]+d*P2[0]+e*O[0],a*P0[1]+b*P1[1]+d*P2[1]+e*O[1],a*P0[2]+b*P1[2]+d*P2[2]+e*O[2]];}
-    var p=pr(bez(t));dot(c,p[0],p[1],MARK.rocket*k,'#ffd0a0',MARK.rocket*1.4*k*S.glow);}   // rocket size = MARK.rocket (k here is the constant kl passed in)
+    var p=pr(bez(t));dot(c,p[0],p[1],MARK.rocket*k,'#ffffff',MARK.rocket*1.4*k*S.glow);}   // rocket = plain white; size = MARK.rocket (k here is the constant kl passed in)
   function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);}
   function bgDepth(c,W,H){var g=c.createRadialGradient(W/2,H*0.46,0,W/2,H*0.46,Math.max(W,H)*0.62);
     g.addColorStop(0,'rgba(30,42,70,0.22)');g.addColorStop(0.5,'rgba(14,20,36,0.12)');g.addColorStop(1,'rgba(0,0,0,0)');
@@ -331,7 +332,7 @@ export function createViewer(canvas, config) {
 
   // ================= PAINT =================
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = mark scale (scales with zoom); kl = stroke scale (constant, no zoom) so lines don't thicken when zooming
+    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale)
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
@@ -349,7 +350,7 @@ export function createViewer(canvas, config) {
       if(A.body===0){bp=[0,0,0];rad=STAGE_R;inc=P.inc*DEG;}
       else{bp=traj.moon[head];rad=P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt));inc=(P.mode==='mission'?P.lloInc:P.inc)*DEG;}
       ang=A.phase+A.rate*NOW;uu=keplerPos(rad,0,inc,0,0,ang);
-      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*kl,'#fff2cf','#e6bf5c',MARK.depot*0.7*kl*S.glow);}}   // depot size = MARK.depot (constant kl scale)
+      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*mk,'#fff2cf','#e6bf5c',MARK.depot*0.7*mk*S.glow);}}   // depot size = MARK.depot · markScale
     if(P.showFleet && P.mode==='mission'){var fd,foff,fa,ca,sa,fidx,fq,fp,rt=traj.rate||0,
         mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=12,
         cum=traj.cum,Lm=(P.fleetDist&&cum)?cum[Math.min(cum.length-1,mSamp)]:0,
@@ -366,19 +367,19 @@ export function createViewer(canvas, config) {
               c.strokeStyle='rgba('+srgb+','+al2.toFixed(3)+')';c.beginPath();c.moveTo(pa2[0],pa2[1]);c.lineTo(pb2[0],pb2[1]);c.stroke();}
             pa2=pb2;pi2=ci2;}}
         fq=satPlot(fidx);fp=pr([fq[0]*ca-fq[1]*sa, fq[0]*sa+fq[1]*ca, fq[2]]);
-        if(occ(fp))continue;bodyOrDot(c,fp[0],fp[1],'sat',MARK.drone*kl,S.sat,MARK.drone*2*kl*S.glow,kl);}}   // escorts = same size as the main drone (MARK.drone)
+        if(occ(fp))continue;bodyOrDot(c,fp[0],fp[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);}}   // escorts = same size as the main drone (MARK.drone · markScale)
     if(P.showHop){
-      drawLaunch(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, AMBS[1].phase, AMBS[1].rate, 0.20, kl);
-      drawLaunch(c,pr,[0,0,0], STAGE_R, P.inc*DEG, AMBS[0].phase, AMBS[0].rate, 0.66, kl);}   // kl → rockets stay small dots at any zoom
+      drawLaunch(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, AMBS[1].phase, AMBS[1].rate, 0.20, mk);
+      drawLaunch(c,pr,[0,0,0], STAGE_R, P.inc*DEG, AMBS[0].phase, AMBS[0].rate, 0.66, mk);}   // mk → rockets sized by MARK.rocket · markScale
     if(P.showLag){var mw=traj.moon[head],md=Math.hypot(mw[0],mw[1],mw[2])||1,ux=mw[0]/md,uy=mw[1]/md,uz=mw[2]/md;
       drawLag(c,pr([mw[0]-lagR*ux,mw[1]-lagR*uy,mw[2]-lagR*uz]),'L1',k);
       drawLag(c,pr([mw[0]+lagR*ux,mw[1]+lagR*uy,mw[2]+lagR*uz]),'L2',k);}
     var sh=spts[head];c.save();c.globalAlpha=(o.env==null?1:o.env);
-    var db=MARK.drone*2.3*kl;   // drone-head bloom radius (constant kl scale)
+    var db=MARK.drone*2.3*mk;   // drone-head bloom radius (MARK.drone · markScale)
     c.globalCompositeOperation='lighter';var hg=c.createRadialGradient(sh[0],sh[1],0,sh[0],sh[1],db);
     hg.addColorStop(0,'rgba('+hexRGB(S.sat)+',0.55)');hg.addColorStop(0.5,'rgba('+hexRGB(S.sat)+',0.14)');hg.addColorStop(1,'rgba('+hexRGB(S.sat)+',0)');
     c.fillStyle=hg;c.beginPath();c.arc(sh[0],sh[1],db,0,7);c.fill();c.globalCompositeOperation='source-over';
-    bodyOrDot(c,sh[0],sh[1],'sat',MARK.drone*kl,S.sat,MARK.drone*2*kl*S.glow,kl);c.restore();   // drone ship size = MARK.drone (capped, ~rocket size)
+    bodyOrDot(c,sh[0],sh[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);c.restore();   // drone ship size = MARK.drone · markScale
   }
 
   // ================= SIZING / LOOP =================
@@ -451,6 +452,7 @@ export function createViewer(canvas, config) {
       if(next.cx!=null) cxFrac=next.cx;
       if(next.cy!=null) cyFrac=next.cy;
       if(next.bscale!=null) bscaleVal=next.bscale;
+      if(next.markScale!=null) markScale=next.markScale;
       if(next.recompute) compute();
       if(!playing) staticFull(); },
     play: play,

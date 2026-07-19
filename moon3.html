@@ -471,7 +471,7 @@
     // if(plume>0.01)for(i=N;i>=0;i--){u=t-i*0.028; if(u<0){pa=null;continue;} pp=pr(bez(u));
     //   if(pa){al=(1-i/N);al=al*al*0.7*plume;c.strokeStyle='rgba(255,140,60,'+al.toFixed(3)+')';c.lineWidth=Math.max(1,1.2*k);c.beginPath();c.moveTo(pa[0],pa[1]);c.lineTo(pp[0],pp[1]);c.stroke();}
     //   pa=pp;}
-    var p=pr(bez(t));dot(c,p[0],p[1],MARK.rocket*k,'#ffd0a0',MARK.rocket*1.4*k*S.glow);}  // rocket size = MARK.rocket (k here is the constant kl passed in)
+    var p=pr(bez(t));dot(c,p[0],p[1],MARK.rocket*k,'#ffffff',MARK.rocket*1.4*k*S.glow);}  // rocket = plain white; size = MARK.rocket (k here is the constant kl passed in)
   function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);}
   function bgDepth(c,W,H){var g=c.createRadialGradient(W/2,H*0.46,0,W/2,H*0.46,Math.max(W,H)*0.62);   // subtle cool center-lift for depth
     g.addColorStop(0,'rgba(30,42,70,0.22)');g.addColorStop(0.5,'rgba(14,20,36,0.12)');g.addColorStop(1,'rgba(0,0,0,0)');
