@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>viewer-core — first-party demo</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  /* The page owns the box. The canvas fills whatever container you give it —
+     size it with CSS like any element; the viewer renders responsively into it. */
+  #stage{position:fixed;inset:0}
+  #stage>canvas{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+  <!-- This is the copy-pattern for the Astro Mission component (a client island):
+       one <canvas>, import { createViewer }, call resize() from a ResizeObserver. -->
+  <div id="stage"><canvas id="view"></canvas></div>
+
+  <script type="module">
+    import { createViewer } from './viewer-core.js';
+
+    const stage  = document.getElementById('stage');
+    const canvas = document.getElementById('view');
+
+    // Defaults tuned in moon3.html get pasted here as plain config — no URL params.
+    // This set reproduces moon3.html?embed=1 (the "moon4" look): Mission preset, zoom 0.8.
+    const viewer = createViewer(canvas, {
+      interactive: false,          // backdrop: no drag/zoom. (true = studio-style interaction)
+      zoom: 0.8,                   // framing multiplier (the old embed default)
+      P: {                         // Mission preset (from PRESETS.mission)
+        mode: 'mission', primary: 'earth',
+        alt: 420, e: 0, inc: 20, mag: 8, span: 8,
+        raise: 3, coast: 1, periodMul: 34,
+        animDur: 60, roundTrip: true, sun: false
+      }
+      // S: { earth:'#5C8CFF', sat:'#EAF1FF', ... }  // color/style overrides go here
+    });
+
+    // Keep the canvas sized to its container. This is the whole "aspect problem" gone:
+    // the page decides the box; the viewer just fits it.
+    const fit = () => viewer.resize(stage.clientWidth, stage.clientHeight);
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(stage);
+    else window.addEventListener('resize', fit);
+    fit();
+
+    // Optional niceties an Astro island would add:
+    //   document.addEventListener('visibilitychange', () =>
+    //     document.hidden ? viewer.pause() : viewer.play());
+    //   onCleanup(() => viewer.destroy());
+  </script>
+</body>
+</html>
