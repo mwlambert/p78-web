@@ -10,11 +10,16 @@
  *    v.resize(w, h);      // call from a ResizeObserver, or pass {width,height} in config
  *    v.pause(); v.play(); v.destroy();
  *
- *  onTelemetry(payload)  — called from the frame loop, throttled ~8 Hz, mission mode only.
+ *  onTelemetry(payload)  — called from the frame loop, throttled ~8 Hz, mission mode only. v1.1:
  *    { phase:'LEO'|'TLI'|'LLO', label, body:'earth'|'moon', progress:0..1,
- *      speed (km/s, vis-viva), altitude (km), distToMoon (km), apoapsis, periapsis (km),
- *      t (mission-elapsed days, real), version:'1.0', phaseChanged?:true }
+ *      speed (km/s, vis-viva), altitude (km above primary surface),
+ *      distToMoon / distToMoonSurface (km, centre / surface),
+ *      distToEarth / distToEarthSurface (km, centre / surface),
+ *      apoapsis, periapsis (km altitude), eccentricity, period (h),
+ *      trueAnomaly (deg), flightPathAngle (deg),
+ *      t (mission-elapsed days, real), tRemaining (days), version:'1.1', phaseChanged?:true }
  *    getState().telemetry returns the same payload for one-shot reads (no phaseChanged).
+ *    All units/calcs are computed in-core (real two-body values); the host only renders.
  *
  *  SSR-safe: NO window / document / location access at module top level — everything
  *  DOM-touching lives inside createViewer / resize / handlers. Safe to `import` under Node.
@@ -49,7 +54,7 @@ export function createViewer(canvas, config) {
   var wheelModifierOnly = !!config.wheelModifierOnly;                    // for interactive embeds inside a scrolling page
   var onCamera = typeof config.onCamera==='function' ? config.onCamera : null;
   var onTelemetry = typeof config.onTelemetry==='function' ? config.onTelemetry : null;
-  var TEL_VERSION='1.0', telHead=0, lastTel=0, TEL_MS=125, lastPhaseLabel=null;   // telemetry payload schema v1.0; emit ~8 Hz
+  var TEL_VERSION='1.1', telHead=0, lastTel=0, TEL_MS=125, lastPhaseLabel=null;   // telemetry payload schema v1.1; emit ~8 Hz
   var reduce = config.reducedMotion!=null ? config.reducedMotion
              : (typeof window!=='undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false);
 
@@ -107,9 +112,9 @@ export function createViewer(canvas, config) {
     for(kk=0;kk<arcs.length;kk++){wk[kk]=Math.sqrt(arcs[kk].dur);sumW+=wk[kk];}
     for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(80,Math.round(2600*wk[kk]/sumW)),dt=ar.dur/st,mt=arcMeta[kk];
       for(j=0;j<st;j++){nuS=trueAnom(ar.M0+(ar.M1-ar.M0)*j/st,ar.e);sat.push(conic(ar.a,ar.e,nuS));
-        satTel.push({ph:mt.ph,label:mt.label,body:'earth',r:ar.a*(1-ar.e*ar.e)/(1+ar.e*Math.cos(nuS)),a:ar.a,e:ar.e,t:tRun});tRun+=dt;}}
+        satTel.push({ph:mt.ph,label:mt.label,body:'earth',r:ar.a*(1-ar.e*ar.e)/(1+ar.e*Math.cos(nuS)),a:ar.a,e:ar.e,nu:nuS,t:tRun});tRun+=dt;}}
     sat.push(conic(Et.a,Et.e,Math.PI));
-    satTel.push({ph:'TLI',label:'Trans-lunar injection',body:'earth',r:Et.a*(1+Et.e),a:Et.a,e:Et.e,t:tRun});
+    satTel.push({ph:'TLI',label:'Trans-lunar injection',body:'earth',r:Et.a*(1+Et.e),a:Et.a,e:Et.e,nu:Math.PI,t:tRun});
     var arrival=sat.length-1;
     var T_earth=0; for(kk=0;kk<arcs.length;kk++)T_earth+=arcs[kk].dur;
     var coast=Math.max(0.1,P.coast);
@@ -121,7 +126,7 @@ export function createViewer(canvas, config) {
     var coilDur=coast*Tmoon, dtC=coilDur/Math.max(1,llo);                    // real time in LLO ≈ coast Moon-orbits
     for(i=1;i<=llo;i++){gi=arrival+i;nu=startNu+rate*gi;frac=i/llo;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push(mp);tRun+=dtC;
       lc=keplerPos(r_llo,0,incL,0,0,TWO*coils*frac);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);
-      tel.push({ph:'LLO',label:'Low lunar orbit',body:'moon',r:r_llo,a:r_llo,e:0,t:tRun});}
+      tel.push({ph:'LLO',label:'Low lunar orbit',body:'moon',r:r_llo,a:r_llo,e:0,nu:(TWO*coils*frac)%TWO,t:tRun});}
     if(P.roundTrip){
       var exitPt=all[all.length-1];
       var apoR=Math.max(r_leo*4, Math.hypot(exitPt[0],exitPt[1],exitPt[2]));
@@ -148,13 +153,13 @@ export function createViewer(canvas, config) {
       for(kk=0;kk<rarcs.length;kk++){var rc=rarcs[kk],stR=Math.max(80,Math.round(2600*wr[kk]/sumR)),dtR=rc.dur/stR,rmt=rMeta[kk];
         for(j2=0;j2<stR;j2++){nuR=trueAnom(rc.M0+(rc.M1-rc.M0)*j2/stR,rc.e);pR=rot(conic(rc.a,rc.e,nuR));
           gidx++;nu=startNu+rate*gidx;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(pR);tRun+=dtR;
-          tel.push({ph:rmt.ph,label:rmt.label,body:'earth',r:rc.a*(1-rc.e*rc.e)/(1+rc.e*Math.cos(nuR)),a:rc.a,e:rc.e,t:tRun});}}
+          tel.push({ph:rmt.ph,label:rmt.label,body:'earth',r:rc.a*(1-rc.e*rc.e)/(1+rc.e*Math.cos(nuR)),a:rc.a,e:rc.e,nu:nuR,t:tRun});}}
       var lastIdx=moon.length-1, curSweep=rate*lastIdx;
       traj.missionOrbits=curSweep/TWO;
       var padN=Math.round((Math.ceil(curSweep/TWO-1e-6)*TWO-curSweep)/rate);
       var hold=all[all.length-1],dtP=rate/TWO*Tmoon;
       for(i=1;i<=padN;i++){gi=lastIdx+i;nu=startNu+rate*gi;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);tRun+=dtP;
-        moon.push(mp);prim.push([0,0,0]);all.push(hold);tel.push({ph:'LEO',label:'Parked (LEO)',body:'earth',r:r_leo,a:r_leo,e:0,t:tRun});}
+        moon.push(mp);prim.push([0,0,0]);all.push(hold);tel.push({ph:'LEO',label:'Parked (LEO)',body:'earth',r:r_leo,a:r_leo,e:0,nu:0,t:tRun});}
     }
     traj.moon=moon;traj.prim=prim;traj.sat=all;traj.tel=tel;
     traj.loopOrbits=rate>0?rate*(moon.length-1)/TWO:0;
@@ -431,18 +436,33 @@ export function createViewer(canvas, config) {
   var teardown=[];
   function on(el,ev,fn,opts){ el.addEventListener(ev,fn,opts); teardown.push(function(){el.removeEventListener(ev,fn,opts);}); }
   function fireCamera(){ if(onCamera) onCamera({tilt:S.tilt, yaw:camYaw, zoom:zoom, panX:panX, panY:panY}); }
-  // ---- telemetry: real mission state (vis-viva units) for a host HUD; mission mode only ----
+  // ---- telemetry: real mission state (vis-viva units) for a host HUD; mission mode only. All calcs live here. ----
   function telemetry(head){
     var t=traj.tel; if(P.mode!=='mission'||!t||!t.length) return null;
     var n=t.length-1, h=Math.max(0,Math.min(n,Math.round(head||0))), r=t[h];
     var mu=r.body==='moon'?muM:muE, R=r.body==='moon'?R_M:R_E;
     var v=Math.sqrt(Math.max(0,mu*(2/r.r-1/r.a)));                    // vis-viva speed, km/s
-    var sw=traj.sat[h], mw=traj.moon[h];
-    var dM=r.body==='moon'?r.r:Math.hypot(sw[0]-mw[0],sw[1]-mw[1],sw[2]-mw[2]);   // real km to Moon (LLO uses true r_llo, not the magnified render)
+    // real spacecraft position: earth-phase samples are true; in LLO divide the coil offset back out of the magnified render
+    var mw=traj.moon[h], sw=traj.sat[h], sx,sy,sz;
+    if(r.body==='moon'){ var mg=P.mag||1; sx=mw[0]+(sw[0]-mw[0])/mg; sy=mw[1]+(sw[1]-mw[1])/mg; sz=mw[2]+(sw[2]-mw[2])/mg; }
+    else { sx=sw[0]; sy=sw[1]; sz=sw[2]; }
+    var dMoon=Math.hypot(sx-mw[0],sy-mw[1],sz-mw[2]);                 // centre-to-centre, km
+    var dEarth=Math.hypot(sx,sy,sz);
+    var fpa=Math.atan2(r.e*Math.sin(r.nu),1+r.e*Math.cos(r.nu))/DEG;  // flight-path angle (deg): 0 = local horizontal (circular / apsis)
+    var ta=(((r.nu%TWO)+TWO)%TWO)/DEG;
     return {phase:r.ph, label:r.label, body:r.body, progress:n>0?h/n:0,
-      speed:Math.round(v*1000)/1000, altitude:Math.round(r.r-R), distToMoon:Math.round(dM),
-      apoapsis:Math.round(r.a*(1+r.e)-R), periapsis:Math.round(r.a*(1-r.e)-R),
-      t:Math.round(r.t*100)/100, version:TEL_VERSION};                // speed km/s · altitude/apo/peri km · t = mission-elapsed days (real)
+      speed:Math.round(v*1000)/1000,                                 // km/s
+      altitude:Math.round(r.r-R),                                    // km above the current primary's surface
+      distToMoon:Math.round(dMoon), distToMoonSurface:Math.round(dMoon-R_M),      // km (centre / surface)
+      distToEarth:Math.round(dEarth), distToEarthSurface:Math.round(dEarth-R_E),  // km (centre / surface)
+      apoapsis:Math.round(r.a*(1+r.e)-R), periapsis:Math.round(r.a*(1-r.e)-R),    // km altitude of the current orbit
+      eccentricity:Math.round(r.e*1e4)/1e4,
+      period:Math.round(periodDays(r.a,mu)*24*1000)/1000,            // orbital period of the current arc, hours
+      trueAnomaly:Math.round(ta*10)/10,                              // deg
+      flightPathAngle:Math.round(fpa*10)/10,                         // deg
+      t:Math.round(r.t*100)/100,                                     // mission-elapsed days (real)
+      tRemaining:Math.round((t[n].t-r.t)*100)/100,                   // days to loop/mission end (real)
+      version:TEL_VERSION};
   }
   function fireTelemetry(head){ if(!onTelemetry) return; var p=telemetry(head); if(!p) return;
     if(p.label!==lastPhaseLabel){ p.phaseChanged=true; lastPhaseLabel=p.label; }   // first tick after a leg transition
