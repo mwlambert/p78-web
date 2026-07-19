@@ -34,6 +34,8 @@ export function createViewer(canvas, config) {
   var S = assign({sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0}, config.S);
   var zoom = config.zoom!=null ? config.zoom : 1;
   var camYaw=0, panX=0, panY=0, camPhi=0;
+  var cxFrac = config.cx!=null ? config.cx : 0.5;      // scene centre as a fraction of W/H (default 0.5 = middle).
+  var cyFrac = config.cy!=null ? config.cy : 0.5;      // e.g. cy:0.7 drops the scene into the lower gap behind copy.
   var bscaleVal = config.bscale!=null ? config.bscale : 1;
   var interactive = config.interactive !== false;                       // default true; site backdrop passes false
   var wheelModifierOnly = !!config.wheelModifierOnly;                    // for interactive embeds inside a scrolling page
@@ -161,7 +163,7 @@ export function createViewer(canvas, config) {
   function projector(W,H,phi){
     var tl=S.tilt*DEG,ct=Math.cos(tl),st=Math.sin(tl),cph=Math.cos(phi),sph=Math.sin(phi);
     var C=traj.C||[0,0,0], rMax=traj.rMax||aMoon;
-    var SC=Math.min(W,H)*0.5/(rMax*1.14)*zoom, cx=W/2+panX, cy=H/2+panY;
+    var SC=Math.min(W,H)*0.5/(rMax*1.14)*zoom, cx=W*cxFrac+panX, cy=H*cyFrac+panY;
     return function(pt){var X=pt[0]-C[0],Y=pt[1]-C[1],Z=pt[2]-C[2];
       var x=X*cph-Y*sph,y=X*sph+Y*cph,z=Z,yv=y*ct-z*st,zv=y*st+z*ct;return [cx+x*SC,cy-yv*SC,zv];};
   }
@@ -441,6 +443,8 @@ export function createViewer(canvas, config) {
       if(next.P) assign(P, next.P);
       if(next.S) assign(S, next.S);
       if(next.zoom!=null) zoom=next.zoom;
+      if(next.cx!=null) cxFrac=next.cx;
+      if(next.cy!=null) cyFrac=next.cy;
       if(next.bscale!=null) bscaleVal=next.bscale;
       if(next.recompute) compute();
       if(!playing) staticFull(); },
