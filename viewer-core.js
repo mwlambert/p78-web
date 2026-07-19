@@ -329,9 +329,9 @@ export function createViewer(canvas, config) {
 
   // ================= PAINT =================
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H)*zoom,total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}
+    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = mark scale (scales with zoom); kl = stroke scale (constant, no zoom) so lines don't thicken when zooming
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
-    if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*k;c.beginPath();
+    if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
     var eP=pr([0,0,0]), mP=pr(traj.moon[head]), eR=6.5*k, mR=4*k;
     function occ(p){var dx=p[0]-eP[0],dy=p[1]-eP[1];
@@ -339,7 +339,7 @@ export function createViewer(canvas, config) {
       dx=p[0]-mP[0];dy=p[1]-mP[1];return (dx*dx+dy*dy<mR*mR*0.82 && p[2]<mP[2]);}
     bodyOrDot(c,eP[0],eP[1],'earth',eR,S.earth,16*k*S.glow,k,'#b7ccff',sCam);
     var spts=[];for(i=0;i<=total;i++)spts.push(pr(satPlot(i)));
-    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),k,o.full,occ,o.env,o.grow);
+    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),kl,o.full,occ,o.env,o.grow);   // kl → constant trail thickness
     bodyOrDot(c,mP[0],mP[1],'moon',mR,S.moon,8*k*S.glow,k,'#eef2f8',sCam);
     if(P.showSats){var j,A,bp,rad,inc,ang,uu,asp;for(j=0;j<AMBS.length;j++){A=AMBS[j];
       if(A.body===0){bp=[0,0,0];rad=STAGE_R;inc=P.inc*DEG;}
@@ -355,7 +355,7 @@ export function createViewer(canvas, config) {
         else{foff=Math.round(fd/(NF+1)*mSamp);}
         fa=rt*foff;ca=Math.cos(fa);sa=Math.sin(fa);
         fidx=((head-foff)%total+total)%total;
-        if(P.fleetTrail){c.lineWidth=1*k;pa2=null;pi2=-9;
+        if(P.fleetTrail){c.lineWidth=1*kl;pa2=null;pi2=-9;
           for(jj=0;jj<TL;jj+=2){ci2=((fidx-jj)%total+total)%total;
             qb=satPlot(ci2);pb2=pr([qb[0]*ca-qb[1]*sa, qb[0]*sa+qb[1]*ca, qb[2]]);
             if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5;

@@ -536,10 +536,10 @@
     c.restore();}
 
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H)*zoom,total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // fold zoom into the mark scale so bodies/traces stay proportional to the orbits at any zoom (zoom=1 → unchanged)
+    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = mark scale (scales with zoom: bodies/orbits); kl = stroke scale (constant, no zoom) so lines stay thin when zooming
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
     // Moon's orbit (full reference ring)
-    if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*k;c.beginPath();
+    if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
     // body screen positions + depths, and an occlusion test (behind a body's disc)
     var eP=pr([0,0,0]), mP=pr(traj.moon[head]), eR=6.5*k, mR=4*k;
@@ -549,7 +549,7 @@
     bodyOrDot(c,eP[0],eP[1],'earth',eR,S.earth,16*k*S.glow,k,'#b7ccff',sCam);
     // satellite trail (fading tail while playing; whole path when paused / still export)
     var spts=[];for(i=0;i<=total;i++)spts.push(pr(satPlot(i)));
-    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),k,o.full,occ,o.env,o.grow);
+    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),kl,o.full,occ,o.env,o.grow);   // kl → constant trail thickness (independent of zoom)
     bodyOrDot(c,mP[0],mP[1],'moon',mR,S.moon,8*k*S.glow,k,'#eef2f8',sCam);   // Moon body
     // ambient satellites — one on the LEO ring, one on the LLO ring (no trails)
     if(P.showSats){var j,A,bp,rad,inc,ang,uu,asp;for(j=0;j<AMBS.length;j++){A=AMBS[j];
@@ -569,7 +569,7 @@
         else{foff=Math.round(fd/(NF+1)*mSamp);}                              // even by mission time → more parked at the Moon
         fa=rt*foff;ca=Math.cos(fa);sa=Math.sin(fa);
         fidx=((head-foff)%total+total)%total;
-        if(P.fleetTrail){c.lineWidth=1*k;pa2=null;pi2=-9;                    // fading comet tail that follows the escort (age-only, like the main drone)
+        if(P.fleetTrail){c.lineWidth=1*kl;pa2=null;pi2=-9;                    // fading comet tail that follows the escort (age-only, like the main drone)
           for(jj=0;jj<TL;jj+=2){ci2=((fidx-jj)%total+total)%total;
             qb=satPlot(ci2);pb2=pr([qb[0]*ca-qb[1]*sa, qb[0]*sa+qb[1]*ca, qb[2]]);
             if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5;      // skip the wrap-seam connector

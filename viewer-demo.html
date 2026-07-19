@@ -33,7 +33,9 @@
     // Defaults tuned in moon3.html get pasted here as plain config — no URL params needed.
     // This set reproduces moon3.html?embed=1 (the "moon4" look): Mission preset, zoom 0.8.
     const viewer = createViewer(canvas, {
-      interactive: false,          // backdrop: no drag/zoom. (true = studio-style interaction)
+      // Backdrop default = non-interactive (matches the site). Add ?i=1 to the URL to
+      // drag-rotate / scroll-zoom for tuning. The Astro island would keep this false.
+      interactive: (q.get('i') === '1' || q.get('interactive') === '1'),
       zoom: num('zoom', 0.8),      // framing multiplier (the old embed default)
       cx:   num('cx', 0.5),        // scene centre X (fraction of width)
       cy:   num('cy', 0.5),        // scene centre Y (fraction of height) — 0.7 = lower gap
