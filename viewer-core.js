@@ -5,9 +5,16 @@
  *
  *  Usage (site / island):
  *    import { createViewer } from 'viewer-core';
- *    const v = createViewer(canvasEl, { interactive:false, P:{mode:'mission',...}, S:{...} });
+ *    const v = createViewer(canvasEl, { interactive:false, P:{mode:'mission',...}, S:{...},
+ *                                       onCamera:(cam)=>{}, onTelemetry:(t)=>{} });
  *    v.resize(w, h);      // call from a ResizeObserver, or pass {width,height} in config
  *    v.pause(); v.play(); v.destroy();
+ *
+ *  onTelemetry(payload)  — called from the frame loop, throttled ~8 Hz, mission mode only.
+ *    { phase:'LEO'|'TLI'|'LLO', label, body:'earth'|'moon', progress:0..1,
+ *      speed (km/s, vis-viva), altitude (km), distToMoon (km), apoapsis, periapsis (km),
+ *      t (mission-elapsed days, real), version:'1.0', phaseChanged?:true }
+ *    getState().telemetry returns the same payload for one-shot reads (no phaseChanged).
  *
  *  SSR-safe: NO window / document / location access at module top level — everything
  *  DOM-touching lives inside createViewer / resize / handlers. Safe to `import` under Node.
@@ -41,6 +48,8 @@ export function createViewer(canvas, config) {
   var interactive = config.interactive !== false;                       // default true; site backdrop passes false
   var wheelModifierOnly = !!config.wheelModifierOnly;                    // for interactive embeds inside a scrolling page
   var onCamera = typeof config.onCamera==='function' ? config.onCamera : null;
+  var onTelemetry = typeof config.onTelemetry==='function' ? config.onTelemetry : null;
+  var TEL_VERSION='1.0', telHead=0, lastTel=0, TEL_MS=125, lastPhaseLabel=null;   // telemetry payload schema v1.0; emit ~8 Hz
   var reduce = config.reducedMotion!=null ? config.reducedMotion
              : (typeof window!=='undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false);
 
@@ -69,7 +78,7 @@ export function createViewer(canvas, config) {
     satA=R+P.alt; satPeriod=periodDays(satA,mu);
     var Tvis=satPeriod*P.periodMul;
     var N=8000, i,t,mp,pp,sr;
-    traj.moon=[];traj.sat=[];traj.prim=[];
+    traj.moon=[];traj.sat=[];traj.prim=[];traj.tel=null;   // telemetry defined for mission mode only
     for(i=0;i<=N;i++){
       t=P.span*i/N;
       mp=keplerPos(aMoon,eMoon,iMoon,0,0,trueAnom(TWO*t/Tmoon,eMoon));
@@ -91,21 +100,28 @@ export function createViewer(canvas, config) {
     for(kk=1;kk<=Nr;kk++){rap=stageR*Math.pow(apoTgt/stageR,kk/(Nr+1));var Erk=elt(stageR,rap);
       arcs.push({a:Erk.a,e:Erk.e,M0:0,M1:TWO,dur:periodDays(Erk.a,muE)});}
     var Et=elt(stageR,apoTgt); arcs.push({a:Et.a,e:Et.e,M0:0,M1:Math.PI,dur:0.5*periodDays(Et.a,muE)});
-    var sat=[],sumW=0,wk=[],j;
+    var sat=[],satTel=[],sumW=0,wk=[],j,tRun=0,nuS;                         // satTel: real orbital state per outbound sample (telemetry)
+    var arcMeta=[{ph:'LEO',label:'LEO parking'},{ph:'LEO',label:'Raise to staging'},{ph:'LEO',label:'Staging orbit'}];
+    for(kk=1;kk<=Nr;kk++)arcMeta.push({ph:'LEO',label:'Apogee raising'});
+    arcMeta.push({ph:'TLI',label:'Trans-lunar injection'});
     for(kk=0;kk<arcs.length;kk++){wk[kk]=Math.sqrt(arcs[kk].dur);sumW+=wk[kk];}
-    for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(80,Math.round(2600*wk[kk]/sumW));
-      for(j=0;j<st;j++)sat.push(conic(ar.a,ar.e,trueAnom(ar.M0+(ar.M1-ar.M0)*j/st,ar.e)));}
+    for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(80,Math.round(2600*wk[kk]/sumW)),dt=ar.dur/st,mt=arcMeta[kk];
+      for(j=0;j<st;j++){nuS=trueAnom(ar.M0+(ar.M1-ar.M0)*j/st,ar.e);sat.push(conic(ar.a,ar.e,nuS));
+        satTel.push({ph:mt.ph,label:mt.label,body:'earth',r:ar.a*(1-ar.e*ar.e)/(1+ar.e*Math.cos(nuS)),a:ar.a,e:ar.e,t:tRun});tRun+=dt;}}
     sat.push(conic(Et.a,Et.e,Math.PI));
+    satTel.push({ph:'TLI',label:'Trans-lunar injection',body:'earth',r:Et.a*(1+Et.e),a:Et.a,e:Et.e,t:tRun});
     var arrival=sat.length-1;
     var T_earth=0; for(kk=0;kk<arcs.length;kk++)T_earth+=arcs[kk].dur;
     var coast=Math.max(0.1,P.coast);
     var T_llo=periodDays(r_llo,muM), coils=Math.max(1,coast*Tmoon/(T_llo*P.periodMul));
     var earthSweep=TWO*T_earth/Tmoon, rate=earthSweep/arrival;
     var llo=Math.max(240,Math.min(16000,Math.round(coast*TWO/rate)));
-    var startNu=Math.PI-earthSweep, moon=[],prim=[],all=[],i,nu,mp,lc,frac,gi;
-    for(i=0;i<=arrival;i++){nu=startNu+rate*i;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(sat[i]);}
-    for(i=1;i<=llo;i++){gi=arrival+i;nu=startNu+rate*gi;frac=i/llo;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push(mp);
-      lc=keplerPos(r_llo,0,incL,0,0,TWO*coils*frac);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);}
+    var startNu=Math.PI-earthSweep, moon=[],prim=[],all=[],tel=[],i,nu,mp,lc,frac,gi;
+    for(i=0;i<=arrival;i++){nu=startNu+rate*i;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(sat[i]);tel.push(satTel[i]);}
+    var coilDur=coast*Tmoon, dtC=coilDur/Math.max(1,llo);                    // real time in LLO ≈ coast Moon-orbits
+    for(i=1;i<=llo;i++){gi=arrival+i;nu=startNu+rate*gi;frac=i/llo;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push(mp);tRun+=dtC;
+      lc=keplerPos(r_llo,0,incL,0,0,TWO*coils*frac);all.push([mp[0]+lloMag*lc[0],mp[1]+lloMag*lc[1],mp[2]+lloMag*lc[2]]);
+      tel.push({ph:'LLO',label:'Low lunar orbit',body:'moon',r:r_llo,a:r_llo,e:0,t:tRun});}
     if(P.roundTrip){
       var exitPt=all[all.length-1];
       var apoR=Math.max(r_leo*4, Math.hypot(exitPt[0],exitPt[1],exitPt[2]));
@@ -124,19 +140,23 @@ export function createViewer(canvas, config) {
       rarcs.push({a:stageR,e:0,M0:0,M1:TWO*nStage+Math.PI,dur:(nStage+0.5)*periodDays(stageR,muE)});
       rarcs.push({a:Ed.a,e:Ed.e,M0:Math.PI,M1:TWO,dur:0.5*periodDays(Ed.a,muE)});
       rarcs.push({a:r_leo,e:0,M0:0,M1:TWO*nLeo,dur:nLeo*periodDays(r_leo,muE)});
-      var sumR=0,wr=[],gidx=arrival+llo,j2,pR;
+      var sumR=0,wr=[],gidx=arrival+llo,j2,pR,nuR;
+      var rMeta=[{ph:'TLI',label:'Trans-Earth injection'}];
+      for(kk=Nr;kk>=1;kk--)rMeta.push({ph:'LEO',label:'Apogee lowering'});
+      rMeta.push({ph:'LEO',label:'Staging orbit'});rMeta.push({ph:'LEO',label:'Descend to LEO'});rMeta.push({ph:'LEO',label:'LEO parking'});
       for(kk=0;kk<rarcs.length;kk++){wr[kk]=Math.sqrt(rarcs[kk].dur);sumR+=wr[kk];}
-      for(kk=0;kk<rarcs.length;kk++){var rc=rarcs[kk],stR=Math.max(80,Math.round(2600*wr[kk]/sumR));
-        for(j2=0;j2<stR;j2++){pR=rot(conic(rc.a,rc.e,trueAnom(rc.M0+(rc.M1-rc.M0)*j2/stR,rc.e)));
-          gidx++;nu=startNu+rate*gidx;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(pR);}}
+      for(kk=0;kk<rarcs.length;kk++){var rc=rarcs[kk],stR=Math.max(80,Math.round(2600*wr[kk]/sumR)),dtR=rc.dur/stR,rmt=rMeta[kk];
+        for(j2=0;j2<stR;j2++){nuR=trueAnom(rc.M0+(rc.M1-rc.M0)*j2/stR,rc.e);pR=rot(conic(rc.a,rc.e,nuR));
+          gidx++;nu=startNu+rate*gidx;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(pR);tRun+=dtR;
+          tel.push({ph:rmt.ph,label:rmt.label,body:'earth',r:rc.a*(1-rc.e*rc.e)/(1+rc.e*Math.cos(nuR)),a:rc.a,e:rc.e,t:tRun});}}
       var lastIdx=moon.length-1, curSweep=rate*lastIdx;
       traj.missionOrbits=curSweep/TWO;
       var padN=Math.round((Math.ceil(curSweep/TWO-1e-6)*TWO-curSweep)/rate);
-      var hold=all[all.length-1];
-      for(i=1;i<=padN;i++){gi=lastIdx+i;nu=startNu+rate*gi;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);
-        moon.push(mp);prim.push([0,0,0]);all.push(hold);}
+      var hold=all[all.length-1],dtP=rate/TWO*Tmoon;
+      for(i=1;i<=padN;i++){gi=lastIdx+i;nu=startNu+rate*gi;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);tRun+=dtP;
+        moon.push(mp);prim.push([0,0,0]);all.push(hold);tel.push({ph:'LEO',label:'Parked (LEO)',body:'earth',r:r_leo,a:r_leo,e:0,t:tRun});}
     }
-    traj.moon=moon;traj.prim=prim;traj.sat=all;
+    traj.moon=moon;traj.prim=prim;traj.sat=all;traj.tel=tel;
     traj.loopOrbits=rate>0?rate*(moon.length-1)/TWO:0;
     if(!P.roundTrip)traj.missionOrbits=traj.loopOrbits;
     traj.spd=rate>0?(TWO/Tmoon)/rate:80;
@@ -350,7 +370,7 @@ export function createViewer(canvas, config) {
       if(A.body===0){bp=[0,0,0];rad=STAGE_R;inc=P.inc*DEG;}
       else{bp=traj.moon[head];rad=P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt));inc=(P.mode==='mission'?P.lloInc:P.inc)*DEG;}
       ang=A.phase+A.rate*NOW;uu=keplerPos(rad,0,inc,0,0,ang);
-      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*mk,'#fff2cf','#e6bf5c',MARK.depot*0.7*mk*S.glow);}}   // depot size = MARK.depot · markScale
+      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*mk,'#e6bf5c','#e6bf5c',MARK.depot*0.7*mk*S.glow);}}   // depot = flat gold (no bright core); size = MARK.depot · markScale
     if(P.showFleet && P.mode==='mission'){var fd,foff,fa,ca,sa,fidx,fq,fp,rt=traj.rate||0,
         mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=12,
         cum=traj.cum,Lm=(P.fleetDist&&cum)?cum[Math.min(cum.length-1,mSamp)]:0,
@@ -384,7 +404,7 @@ export function createViewer(canvas, config) {
 
   // ================= SIZING / LOOP =================
   function drawMs(){return Math.max(2000,P.animDur*1000);}
-  function drawFrame(head,phi,full,env,grow){ paint(ctx,W,H,head,phi,{transparent:false,full:full,env:env,grow:grow}); }
+  function drawFrame(head,phi,full,env,grow){ telHead=head; paint(ctx,W,H,head,phi,{transparent:false,full:full,env:env,grow:grow}); }
   function staticFull(){ drawFrame(lastHead(), camYaw, true); }
 
   var playing = !reduce, t0=null, rafId=null;
@@ -392,6 +412,7 @@ export function createViewer(canvas, config) {
     var total=lastHead(), ph=((now-t0)/drawMs())%1; if(ph<0)ph+=1;
     var head=Math.max(1,Math.min(total,Math.round(ph*total)));
     drawFrame(head,camPhi,false);
+    if(now-lastTel>=TEL_MS){ lastTel=now; fireTelemetry(head); }   // throttled telemetry (~8 Hz)
     if(playing) rafId=raf(frame); }
   function play(){ if(playing && rafId!=null) return; playing=true; t0=null; rafId=raf(frame); }
   function pause(){ playing=false; caf(rafId); rafId=null; staticFull(); }
@@ -410,6 +431,22 @@ export function createViewer(canvas, config) {
   var teardown=[];
   function on(el,ev,fn,opts){ el.addEventListener(ev,fn,opts); teardown.push(function(){el.removeEventListener(ev,fn,opts);}); }
   function fireCamera(){ if(onCamera) onCamera({tilt:S.tilt, yaw:camYaw, zoom:zoom, panX:panX, panY:panY}); }
+  // ---- telemetry: real mission state (vis-viva units) for a host HUD; mission mode only ----
+  function telemetry(head){
+    var t=traj.tel; if(P.mode!=='mission'||!t||!t.length) return null;
+    var n=t.length-1, h=Math.max(0,Math.min(n,Math.round(head||0))), r=t[h];
+    var mu=r.body==='moon'?muM:muE, R=r.body==='moon'?R_M:R_E;
+    var v=Math.sqrt(Math.max(0,mu*(2/r.r-1/r.a)));                    // vis-viva speed, km/s
+    var sw=traj.sat[h], mw=traj.moon[h];
+    var dM=r.body==='moon'?r.r:Math.hypot(sw[0]-mw[0],sw[1]-mw[1],sw[2]-mw[2]);   // real km to Moon (LLO uses true r_llo, not the magnified render)
+    return {phase:r.ph, label:r.label, body:r.body, progress:n>0?h/n:0,
+      speed:Math.round(v*1000)/1000, altitude:Math.round(r.r-R), distToMoon:Math.round(dM),
+      apoapsis:Math.round(r.a*(1+r.e)-R), periapsis:Math.round(r.a*(1-r.e)-R),
+      t:Math.round(r.t*100)/100, version:TEL_VERSION};                // speed km/s · altitude/apo/peri km · t = mission-elapsed days (real)
+  }
+  function fireTelemetry(head){ if(!onTelemetry) return; var p=telemetry(head); if(!p) return;
+    if(p.label!==lastPhaseLabel){ p.phaseChanged=true; lastPhaseLabel=p.label; }   // first tick after a leg transition
+    onTelemetry(p); }
   function attachInteractive(){
     var dragging=false,lastX=0,lastY=0;
     on(canvas,'pointerdown',function(ev){dragging=true;lastX=ev.clientX;lastY=ev.clientY;try{canvas.setPointerCapture(ev.pointerId);}catch(e){}});
@@ -461,7 +498,7 @@ export function createViewer(canvas, config) {
     // Paint one frame into an arbitrary 2D context (used by the studio's PNG/video export).
     snapshot: function(targetCtx, w, h, opts){ paint(targetCtx, w, h, lastHead(), camYaw, assign({transparent:false, full:true}, opts||{})); },
     setBodyImage: function(which, img, url){ bodyImg[which]=img; bodyData[which]=url||null; if(!playing) staticFull(); },
-    getState: function(){ return { P:P, S:S, zoom:zoom, camYaw:camYaw, panX:panX, panY:panY, satPeriod:satPeriod, traj:traj, NOW:NOW }; },
+    getState: function(){ return { P:P, S:S, zoom:zoom, camYaw:camYaw, panX:panX, panY:panY, satPeriod:satPeriod, traj:traj, NOW:NOW, telemetry:telemetry(telHead) }; },
     isPlaying: function(){ return playing; },
     destroy: function(){ pause(); for(var i=0;i<teardown.length;i++) teardown[i](); teardown=[]; }
   };
