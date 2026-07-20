@@ -272,7 +272,7 @@ export function createViewer(canvas, config) {
     var rx=SUNW[0]*cph-SUNW[1]*sph,y1=SUNW[0]*sph+SUNW[1]*cph;
     return [rx, y1*ct-SUNW[2]*st, y1*st+SUNW[2]*ct];}
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k,lit,sCam){var im=bodyImg[which];
-    if(im&&im.complete&&im.naturalWidth){var d=2*dotR*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);return;}   // body image sized to the true body radius (dotR); bscale = fine-tune
+    if(im&&im.complete&&im.naturalWidth){var d=2*dotR*bscale();c.save();c.beginPath();c.arc(x,y,d/2,0,7);c.clip();c.drawImage(im,x-d/2,y-d/2,d,d);var lg=c.createRadialGradient(x,y,d*0.36,x,y,d/2);lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(0.7,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0.55)');c.fillStyle=lg;c.fillRect(x-d/2,y-d/2,d,d);c.restore();return;}   // clipped disc, limb-darkened edge → reads as a lit sphere; sized to true radius (dotR); bscale = fine-tune
     if(which==='earth'||which==='moon'){var T=which==='earth'?earthTex():moonTex();
       drawGlobe(c,x,y,dotR,T.day,T.lights,NOW*(which==='earth'?0.0000038:0.0000016),which==='earth',hex,blur,sCam||[-0.6,0.5,0.6],!P.sun);return;}
     if(lit){

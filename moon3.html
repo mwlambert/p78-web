@@ -449,7 +449,7 @@
     var rx=SUNW[0]*cph-SUNW[1]*sph,y1=SUNW[0]*sph+SUNW[1]*cph;
     return [rx, y1*ct-SUNW[2]*st, y1*st+SUNW[2]*ct];}
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k,lit,sCam){var im=bodyImg[which];
-    if(im&&im.complete&&im.naturalWidth){var d=DIA[which]*k*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);return;}
+    if(im&&im.complete&&im.naturalWidth){var d=2*dotR*bscale();c.save();c.beginPath();c.arc(x,y,d/2,0,7);c.clip();c.drawImage(im,x-d/2,y-d/2,d,d);var lg=c.createRadialGradient(x,y,d*0.36,x,y,d/2);lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(0.7,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0.55)');c.fillStyle=lg;c.fillRect(x-d/2,y-d/2,d,d);c.restore();return;}   // clipped to a circle → clean disc; limb-darkened edge so the photo reads as a lit sphere, not a flat sticker; sized to true radius, bscale = fine-tune
     if(which==='earth'||which==='moon'){var T=which==='earth'?earthTex():moonTex();
       drawGlobe(c,x,y,dotR,T.day,T.lights,NOW*(which==='earth'?0.0000038:0.0000016),which==='earth',hex,blur,sCam||[-0.6,0.5,0.6],!P.sun);return;}   // slow Earth spin; P.sun off → flat full body
     if(lit){                                     // shaded sphere (fixed light from upper-left)
@@ -815,6 +815,8 @@
       im.onerror=function(){exNote.textContent='Could not load that '+which+' image (SVGs need a width/height).';};im.src=url;};
     rd.readAsDataURL(f);});}
   loadBody('sat','imgSat');loadBody('moon','imgMoon');loadBody('earth','imgEarth');
+  (function(){var im=new Image();im.onload=function(){bodyImg.earth=im;bodyData.earth=im.src;refreshStatic();};im.src='assets/blue-marble-2k.jpg';})();   // default Earth = Blue Marble photo (Reset bodies to go back to the procedural globe)
+  (function(){var im=new Image();im.onload=function(){bodyImg.moon=im;bodyData.moon=im.src;refreshStatic();};im.src='assets/moon-2k.jpg';})();               // default Moon = full-moon photo
   document.getElementById('bscale').addEventListener('input',function(){document.getElementById('bscaleV').textContent=parseFloat(this.value).toFixed(1);refreshStatic();});
   document.getElementById('bReset').addEventListener('click',function(){bodyImg={sat:null,moon:null,earth:null};bodyData={sat:null,moon:null,earth:null};
     ['imgSat','imgMoon','imgEarth'].forEach(function(id){document.getElementById(id).value='';});refreshStatic();exNote.textContent='Bodies reset to default.';});
