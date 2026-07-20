@@ -161,9 +161,10 @@ export function createViewer(canvas, config) {
       var lastIdx=moon.length-1, curSweep=rate*lastIdx;
       traj.missionOrbits=curSweep/TWO;
       var padN=Math.round((Math.ceil(curSweep/TWO-1e-6)*TWO-curSweep)/rate);
-      var hold=all[all.length-1],dtP=rate/TWO*Tmoon;
+      var dtP=rate/TWO*Tmoon, padLaps=Math.max(1,Math.round(padN/100)), dLeoAng=TWO*padLaps/padN;   // OTV keeps ORBITING LEO through the wait (schematic lap rate; real speed lives in telemetry). Whole laps → seam matches the start.
       for(i=1;i<=padN;i++){gi=lastIdx+i;nu=startNu+rate*gi;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);tRun+=dtP;
-        moon.push(mp);prim.push([0,0,0]);all.push(hold);tel.push({ph:'LEO',label:'Parked (LEO)',body:'earth',r:r_leo,a:r_leo,e:0,nu:0,t:tRun});}
+        moon.push(mp);prim.push([0,0,0]);all.push(rot(conic(r_leo,0,dLeoAng*i)));
+        tel.push({ph:'LEO',label:'LEO parking',body:'earth',r:r_leo,a:r_leo,e:0,nu:dLeoAng*i,t:tRun});}
     }
     traj.moon=moon;traj.prim=prim;traj.sat=all;traj.tel=tel;
     traj.loopOrbits=rate>0?rate*(moon.length-1)/TWO:0;
@@ -271,7 +272,7 @@ export function createViewer(canvas, config) {
     var rx=SUNW[0]*cph-SUNW[1]*sph,y1=SUNW[0]*sph+SUNW[1]*cph;
     return [rx, y1*ct-SUNW[2]*st, y1*st+SUNW[2]*ct];}
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k,lit,sCam){var im=bodyImg[which];
-    if(im&&im.complete&&im.naturalWidth){var d=DIA[which]*k*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);return;}
+    if(im&&im.complete&&im.naturalWidth){var d=2*dotR*bscale();c.drawImage(im,x-d/2,y-d/2,d,d);return;}   // body image sized to the true body radius (dotR); bscale = fine-tune
     if(which==='earth'||which==='moon'){var T=which==='earth'?earthTex():moonTex();
       drawGlobe(c,x,y,dotR,T.day,T.lights,NOW*(which==='earth'?0.0000038:0.0000016),which==='earth',hex,blur,sCam||[-0.6,0.5,0.6],!P.sun);return;}
     if(lit){
@@ -285,20 +286,30 @@ export function createViewer(canvas, config) {
     c.fillStyle='rgba(255,170,110,0.9)';c.font=Math.round(9.5*k)+'px ui-monospace, Menlo, monospace';c.textAlign='left';c.textBaseline='middle';
     c.fillText(label,p[0]+r+3,p[1]);}
   function drawLaunch(c,pr,bp,ring,inc,dPhase,dRate,seed,k,lf){
-    var cyc=((NOW*0.00009+seed)%1+1)%1; if(cyc>0.82)return;
-    var t=Math.min(1,cyc/0.40);
-    var dAng=dPhase+dRate*NOW;
-    var ud=keplerPos(1,0,inc,0,0,dAng);
-    var th=keplerPos(1,0,inc,0,0,dAng+Math.PI/2);
-    var ul=keplerPos(1,0,inc,0,0,dAng-0.9), rS=ring*0.11;
-    var O =[bp[0]+ring*ud[0],bp[1]+ring*ud[1],bp[2]+ring*ud[2]];
-    var P0=[bp[0]+rS*ul[0],bp[1]+rS*ul[1],bp[2]+rS*ul[2]];
-    var P1=[bp[0]+ring*0.5*ul[0],bp[1]+ring*0.5*ul[1],bp[2]+ring*0.5*ul[2]];
-    var P2=[O[0]-ring*0.5*th[0],O[1]-ring*0.5*th[1],O[2]-ring*0.5*th[2]];
-    function bez(u){var m=1-u,a=m*m*m,b=3*m*m*u,d=3*m*u*u,e=u*u*u;
-      return [a*P0[0]+b*P1[0]+d*P2[0]+e*O[0],a*P0[1]+b*P1[1]+d*P2[1]+e*O[1],a*P0[2]+b*P1[2]+d*P2[2]+e*O[2]];}
-    var p=pr(bez(t));dot(c,p[0],p[1],MARK.rocket*k,'#ffffff',MARK.rocket*1.4*k*S.glow);   // rocket = plain white; size = MARK.rocket (k here is the constant kl passed in)
-    if(lf&&labeled('tanker'))drawLabel(c,p[0],p[1],'Tanker',MARK.rocket*k+10,lf);}          // the launch rockets are tankers
+    var PER=20000, MIS=9000;                                               // 9 s mission, then ~11 s idle (≈ one depot orbit) before the next tanker
+    var tm=((NOW+seed*PER)%PER+PER)%PER; if(tm>MIS)return; var cyc=tm/MIS;  // cyc 0..1 across the active mission; seed staggers the two tankers
+    var dAng=dPhase+dRate*NOW, rS=ring*0.11;
+    var ud=keplerPos(1,0,inc,0,0,dAng), th=keplerPos(1,0,inc,0,0,dAng+Math.PI/2);
+    var O=[bp[0]+ring*ud[0],bp[1]+ring*ud[1],bp[2]+ring*ud[2]];             // depot (RDV point)
+    function cbz(A,B,C,D,u){var m=1-u,a=m*m*m,b=3*m*m*u,d=3*m*u*u,e=u*u*u;
+      return [a*A[0]+b*B[0]+d*C[0]+e*D[0],a*A[1]+b*B[1]+d*C[1]+e*D[1],a*A[2]+b*B[2]+d*C[2]+e*D[2]];}
+    var pos;
+    if(cyc<0.33){                                                          // ASCENT: pad → depot (gravity-turn)
+      var ul=keplerPos(1,0,inc,0,0,dAng-0.9);
+      var L =[bp[0]+rS*ul[0],bp[1]+rS*ul[1],bp[2]+rS*ul[2]];
+      var A1=[bp[0]+ring*0.5*ul[0],bp[1]+ring*0.5*ul[1],bp[2]+ring*0.5*ul[2]];
+      var A2=[O[0]-ring*0.5*th[0],O[1]-ring*0.5*th[1],O[2]-ring*0.5*th[2]];
+      pos=cbz(L,A1,A2,O,cyc/0.33);
+    } else if(cyc<0.63){ pos=O; }                                          // RDV: docked at the depot
+    else {                                                                 // DESCENT: depot → surface (return, lands downrange)
+      var dl=keplerPos(1,0,inc,0,0,dAng+0.9);
+      var Ld=[bp[0]+rS*dl[0],bp[1]+rS*dl[1],bp[2]+rS*dl[2]];
+      var D1=[O[0]+ring*0.5*th[0],O[1]+ring*0.5*th[1],O[2]+ring*0.5*th[2]];
+      var D2=[bp[0]+ring*0.5*dl[0],bp[1]+ring*0.5*dl[1],bp[2]+ring*0.5*dl[2]];
+      pos=cbz(O,D1,D2,Ld,(cyc-0.63)/0.37);
+    }
+    var p=pr(pos);dot(c,p[0],p[1],MARK.rocket*k,'#ffffff',MARK.rocket*1.4*k*S.glow);   // rocket = plain white; size = MARK.rocket
+    if(lf&&labeled('tanker'))drawLabel(c,p[0],p[1],'Tanker',-(MARK.rocket*k+10),lf);}        // tanker label to the LEFT of the rocket
   function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);}
   function bgDepth(c,W,H){var g=c.createRadialGradient(W/2,H*0.46,0,W/2,H*0.46,Math.max(W,H)*0.62);
     g.addColorStop(0,'rgba(30,42,70,0.22)');g.addColorStop(0.5,'rgba(14,20,36,0.12)');g.addColorStop(1,'rgba(0,0,0,0)');
@@ -362,8 +373,8 @@ export function createViewer(canvas, config) {
 
   // ================= PAINT =================
   function labeled(key){ return labels && (!labelSet || labelSet.indexOf(key)>=0); }
-  function drawLabel(c,x,y,text,off,lf){                                 // small mono label offset off the body (readability ~ the L1/L2 tags)
-    c.save();c.font=lf+'px ui-monospace, SFMono-Regular, Menlo, monospace';c.textAlign='left';c.textBaseline='middle';
+  function drawLabel(c,x,y,text,off,lf){                                 // small mono label offset off the body; off<0 → placed to the left
+    c.save();c.font=lf+'px ui-monospace, SFMono-Regular, Menlo, monospace';c.textAlign=off<0?'right':'left';c.textBaseline='middle';
     c.shadowColor='rgba(0,0,0,0.7)';c.shadowBlur=3;                     // subtle backing so text stays legible over lines/stars
     c.fillStyle='rgba(220,228,242,0.92)';c.fillText(text, x+off, y);c.restore(); }
   function paint(c,W,H,head,phi,o){
