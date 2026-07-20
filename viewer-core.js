@@ -52,6 +52,7 @@ export function createViewer(canvas, config) {
   var cyFrac = config.cy!=null ? config.cy : 0.5;      // e.g. cy:0.7 drops the scene into the lower gap behind copy.
   var bscaleVal = config.bscale!=null ? config.bscale : 1;
   var markScale = config.markScale!=null ? config.markScale : 1;        // host multiplier for the depot/rocket/drone dot sizes (e.g. 0.4 on a zoomed-out backdrop). Strokes use lw.
+  var labelScale = config.labelScale!=null ? config.labelScale : 1;     // host multiplier for body-label font size (default 1). Labels also track markScale gently (√) so they shrink with the dots on a backdrop.
   var labels = !!config.labels;                                         // draw a small label next to each body (default false)
   var labelSet = config.labelSet || null;                               // optional pick: ['earth','moon','depot','drone']; null = all
   var interactive = config.interactive !== false;                       // default true; site backdrop passes false
@@ -378,7 +379,7 @@ export function createViewer(canvas, config) {
     c.shadowColor='rgba(0,0,0,0.7)';c.shadowBlur=3;                     // subtle backing so text stays legible over lines/stars
     c.fillStyle='rgba(220,228,242,0.92)';c.fillText(text, x+off, y);c.restore(); }
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
+    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl*Math.sqrt(markScale)*labelScale))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
@@ -535,6 +536,7 @@ export function createViewer(canvas, config) {
       if(next.cy!=null) cyFrac=next.cy;
       if(next.bscale!=null) bscaleVal=next.bscale;
       if(next.markScale!=null) markScale=next.markScale;
+      if(next.labelScale!=null) labelScale=next.labelScale;
       if(next.labels!=null) labels=!!next.labels;
       if(next.labelSet!==undefined) labelSet=next.labelSet||null;
       if(next.recompute) compute();
