@@ -6,7 +6,9 @@
  *  Usage (site / island):
  *    import { createViewer } from 'viewer-core';
  *    const v = createViewer(canvasEl, { interactive:false, P:{mode:'mission',...}, S:{...},
+ *                                       labels:false, labelSet:['earth','moon','depot','drone'],
  *                                       onCamera:(cam)=>{}, onTelemetry:(t)=>{} });
+ *    v.setConfig({ labels:true });   // live-toggle body labels
  *    v.resize(w, h);      // call from a ResizeObserver, or pass {width,height} in config
  *    v.pause(); v.play(); v.destroy();
  *
@@ -50,6 +52,8 @@ export function createViewer(canvas, config) {
   var cyFrac = config.cy!=null ? config.cy : 0.5;      // e.g. cy:0.7 drops the scene into the lower gap behind copy.
   var bscaleVal = config.bscale!=null ? config.bscale : 1;
   var markScale = config.markScale!=null ? config.markScale : 1;        // host multiplier for the depot/rocket/drone dot sizes (e.g. 0.4 on a zoomed-out backdrop). Strokes use lw.
+  var labels = !!config.labels;                                         // draw a small label next to each body (default false)
+  var labelSet = config.labelSet || null;                               // optional pick: ['earth','moon','depot','drone']; null = all
   var interactive = config.interactive !== false;                       // default true; site backdrop passes false
   var wheelModifierOnly = !!config.wheelModifierOnly;                    // for interactive embeds inside a scrolling page
   var onCamera = typeof config.onCamera==='function' ? config.onCamera : null;
@@ -356,8 +360,12 @@ export function createViewer(canvas, config) {
     c.restore();}
 
   // ================= PAINT =================
+  function labeled(key){ return labels && (!labelSet || labelSet.indexOf(key)>=0); }
+  function drawLabel(c,x,y,text,off,lf){                                 // small mono label, low opacity, offset off the body
+    c.save();c.font=lf+'px ui-monospace, SFMono-Regular, Menlo, monospace';c.textAlign='left';c.textBaseline='middle';
+    c.fillStyle='rgba(206,215,232,0.42)';c.fillText(text, x+off, y);c.restore(); }
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale)
+    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
@@ -368,14 +376,17 @@ export function createViewer(canvas, config) {
       if(dx*dx+dy*dy<eR*eR*0.82 && p[2]<eP[2])return true;
       dx=p[0]-mP[0];dy=p[1]-mP[1];return (dx*dx+dy*dy<mR*mR*0.82 && p[2]<mP[2]);}
     bodyOrDot(c,eP[0],eP[1],'earth',eR,S.earth,16*k*S.glow,k,'#b7ccff',sCam);
+    if(labeled('earth'))drawLabel(c,eP[0],eP[1],'Earth',eR+6,lf);
     var spts=[];for(i=0;i<=total;i++)spts.push(pr(satPlot(i)));
     if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),kl,o.full,occ,o.env,o.grow);   // kl → constant trail thickness
     bodyOrDot(c,mP[0],mP[1],'moon',mR,S.moon,8*k*S.glow,k,'#eef2f8',sCam);
+    if(labeled('moon'))drawLabel(c,mP[0],mP[1],'Moon',mR+6,lf);
     if(P.showSats){var j,A,bp,rad,inc,ang,uu,asp;for(j=0;j<AMBS.length;j++){A=AMBS[j];
       if(A.body===0){bp=[0,0,0];rad=STAGE_R;inc=P.inc*DEG;}
       else{bp=traj.moon[head];rad=P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt));inc=(P.mode==='mission'?P.lloInc:P.inc)*DEG;}
       ang=A.phase+A.rate*NOW;uu=keplerPos(rad,0,inc,0,0,ang);
-      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*mk,'#e6bf5c','#e6bf5c',MARK.depot*0.7*mk*S.glow);}}   // depot = flat gold (no bright core); size = MARK.depot · markScale
+      asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*mk,'#e6bf5c','#e6bf5c',MARK.depot*0.7*mk*S.glow);
+      if(labeled('depot'))drawLabel(c,asp[0],asp[1],'Depot',MARK.depot*mk+6,lf);}}   // depot = flat gold (no bright core); size = MARK.depot · markScale
     if(P.showFleet && P.mode==='mission'){var fd,foff,fa,ca,sa,fidx,fq,fp,rt=traj.rate||0,
         mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=12,
         cum=traj.cum,Lm=(P.fleetDist&&cum)?cum[Math.min(cum.length-1,mSamp)]:0,
@@ -405,6 +416,7 @@ export function createViewer(canvas, config) {
     hg.addColorStop(0,'rgba('+hexRGB(S.sat)+',0.55)');hg.addColorStop(0.5,'rgba('+hexRGB(S.sat)+',0.14)');hg.addColorStop(1,'rgba('+hexRGB(S.sat)+',0)');
     c.fillStyle=hg;c.beginPath();c.arc(sh[0],sh[1],db,0,7);c.fill();c.globalCompositeOperation='source-over';
     bodyOrDot(c,sh[0],sh[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);c.restore();   // drone ship size = MARK.drone · markScale
+    if(labeled('drone'))drawLabel(c,sh[0],sh[1],'Drone',MARK.drone*mk+6,lf);
   }
 
   // ================= SIZING / LOOP =================
@@ -510,6 +522,8 @@ export function createViewer(canvas, config) {
       if(next.cy!=null) cyFrac=next.cy;
       if(next.bscale!=null) bscaleVal=next.bscale;
       if(next.markScale!=null) markScale=next.markScale;
+      if(next.labels!=null) labels=!!next.labels;
+      if(next.labelSet!==undefined) labelSet=next.labelSet||null;
       if(next.recompute) compute();
       if(!playing) staticFull(); },
     play: play,
