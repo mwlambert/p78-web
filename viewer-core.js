@@ -298,7 +298,7 @@ export function createViewer(canvas, config) {
     function bez(u){var m=1-u,a=m*m*m,b=3*m*m*u,d=3*m*u*u,e=u*u*u;
       return [a*P0[0]+b*P1[0]+d*P2[0]+e*O[0],a*P0[1]+b*P1[1]+d*P2[1]+e*O[1],a*P0[2]+b*P1[2]+d*P2[2]+e*O[2]];}
     var p=pr(bez(t));dot(c,p[0],p[1],MARK.rocket*k,'#ffffff',MARK.rocket*1.4*k*S.glow);   // rocket = plain white; size = MARK.rocket (k here is the constant kl passed in)
-    if(lf&&labeled('tanker'))drawLabel(c,p[0],p[1],'Tanker',MARK.rocket*k+6,lf);}          // the launch rockets are tankers
+    if(lf&&labeled('tanker'))drawLabel(c,p[0],p[1],'Tanker',MARK.rocket*k+10,lf);}          // the launch rockets are tankers
   function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);}
   function bgDepth(c,W,H){var g=c.createRadialGradient(W/2,H*0.46,0,W/2,H*0.46,Math.max(W,H)*0.62);
     g.addColorStop(0,'rgba(30,42,70,0.22)');g.addColorStop(0.5,'rgba(14,20,36,0.12)');g.addColorStop(1,'rgba(0,0,0,0)');
@@ -362,9 +362,10 @@ export function createViewer(canvas, config) {
 
   // ================= PAINT =================
   function labeled(key){ return labels && (!labelSet || labelSet.indexOf(key)>=0); }
-  function drawLabel(c,x,y,text,off,lf){                                 // small mono label, low opacity, offset off the body
+  function drawLabel(c,x,y,text,off,lf){                                 // small mono label offset off the body (readability ~ the L1/L2 tags)
     c.save();c.font=lf+'px ui-monospace, SFMono-Regular, Menlo, monospace';c.textAlign='left';c.textBaseline='middle';
-    c.fillStyle='rgba(206,215,232,0.42)';c.fillText(text, x+off, y);c.restore(); }
+    c.shadowColor='rgba(0,0,0,0.7)';c.shadowBlur=3;                     // subtle backing so text stays legible over lines/stars
+    c.fillStyle='rgba(220,228,242,0.92)';c.fillText(text, x+off, y);c.restore(); }
   function paint(c,W,H,head,phi,o){
     o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
@@ -377,17 +378,17 @@ export function createViewer(canvas, config) {
       if(dx*dx+dy*dy<eR*eR*0.82 && p[2]<eP[2])return true;
       dx=p[0]-mP[0];dy=p[1]-mP[1];return (dx*dx+dy*dy<mR*mR*0.82 && p[2]<mP[2]);}
     bodyOrDot(c,eP[0],eP[1],'earth',eR,S.earth,16*k*S.glow,k,'#b7ccff',sCam);
-    if(labeled('earth'))drawLabel(c,eP[0],eP[1],'Earth',eR+6,lf);
+    if(labeled('earth'))drawLabel(c,eP[0],eP[1],'Earth',eR+10,lf);
     var spts=[];for(i=0;i<=total;i++)spts.push(pr(satPlot(i)));
     if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),kl,o.full,occ,o.env,o.grow);   // kl → constant trail thickness
     bodyOrDot(c,mP[0],mP[1],'moon',mR,S.moon,8*k*S.glow,k,'#eef2f8',sCam);
-    if(labeled('moon'))drawLabel(c,mP[0],mP[1],'Moon',mR+6,lf);
+    if(labeled('moon'))drawLabel(c,mP[0],mP[1],'Moon',mR+10,lf);
     if(P.showSats){var j,A,bp,rad,inc,ang,uu,asp;for(j=0;j<AMBS.length;j++){A=AMBS[j];
       if(A.body===0){bp=[0,0,0];rad=STAGE_R;inc=P.inc*DEG;}
       else{bp=traj.moon[head];rad=P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt));inc=(P.mode==='mission'?P.lloInc:P.inc)*DEG;}
       ang=A.phase+A.rate*NOW;uu=keplerPos(rad,0,inc,0,0,ang);
       asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*mk,'#e6bf5c','#e6bf5c',MARK.depot*0.7*mk*S.glow);
-      if(labeled('depot'))drawLabel(c,asp[0],asp[1],'Depot',MARK.depot*mk+6,lf);}}   // depot = flat gold (no bright core); size = MARK.depot · markScale
+      if(labeled('depot'))drawLabel(c,asp[0],asp[1],'Depot',MARK.depot*mk+10,lf);}}   // depot = flat gold (no bright core); size = MARK.depot · markScale
     if(P.showFleet && P.mode==='mission'){var fd,foff,fa,ca,sa,fidx,fq,fp,rt=traj.rate||0,
         mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=12,
         cum=traj.cum,Lm=(P.fleetDist&&cum)?cum[Math.min(cum.length-1,mSamp)]:0,
@@ -417,7 +418,7 @@ export function createViewer(canvas, config) {
     hg.addColorStop(0,'rgba('+hexRGB(S.sat)+',0.55)');hg.addColorStop(0.5,'rgba('+hexRGB(S.sat)+',0.14)');hg.addColorStop(1,'rgba('+hexRGB(S.sat)+',0)');
     c.fillStyle=hg;c.beginPath();c.arc(sh[0],sh[1],db,0,7);c.fill();c.globalCompositeOperation='source-over';
     bodyOrDot(c,sh[0],sh[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);c.restore();   // drone ship size = MARK.drone · markScale
-    if(labeled('otv'))drawLabel(c,sh[0],sh[1],'OTV',MARK.drone*mk+6,lf);   // OTV = the orbital transfer vehicle
+    if(labeled('otv'))drawLabel(c,sh[0],sh[1],'OTV',MARK.drone*mk+10,lf);   // OTV = the orbital transfer vehicle
   }
 
   // ================= SIZING / LOOP =================

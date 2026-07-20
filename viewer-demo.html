@@ -40,6 +40,8 @@
       cx:   num('cx', 0.5),        // scene centre X (fraction of width)
       cy:   num('cy', 0.5),        // scene centre Y (fraction of height) — 0.7 = lower gap
       markScale: num('markScale', 1),  // depot/rocket/drone dot size multiplier — e.g. 0.4 for small dots on a backdrop
+      labels: (q.get('labels') === '1'),                                   // ?labels=1 → show OTV / Tanker / Depot / Earth / Moon labels
+      labelSet: q.get('labelSet') ? q.get('labelSet').split(',') : null,   // ?labelSet=otv,moon → pick which
       P: {                         // Mission preset (from PRESETS.mission)
         mode: 'mission', primary: 'earth',
         alt: 420, e: 0, inc: 20, mag: 8, span: 8,
