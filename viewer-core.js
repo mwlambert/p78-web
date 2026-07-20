@@ -6,7 +6,7 @@
  *  Usage (site / island):
  *    import { createViewer } from 'viewer-core';
  *    const v = createViewer(canvasEl, { interactive:false, P:{mode:'mission',...}, S:{...},
- *                                       labels:false, labelSet:['earth','moon','depot','drone'],
+ *                                       labels:false, labelSet:['earth','moon','otv','tanker','depot'],
  *                                       onCamera:(cam)=>{}, onTelemetry:(t)=>{} });
  *    v.setConfig({ labels:true });   // live-toggle body labels
  *    v.resize(w, h);      // call from a ResizeObserver, or pass {width,height} in config
@@ -284,7 +284,7 @@ export function createViewer(canvas, config) {
     c.beginPath();c.moveTo(p[0]-r,p[1]);c.lineTo(p[0]+r,p[1]);c.moveTo(p[0],p[1]-r);c.lineTo(p[0],p[1]+r);c.stroke();
     c.fillStyle='rgba(255,170,110,0.9)';c.font=Math.round(9.5*k)+'px ui-monospace, Menlo, monospace';c.textAlign='left';c.textBaseline='middle';
     c.fillText(label,p[0]+r+3,p[1]);}
-  function drawLaunch(c,pr,bp,ring,inc,dPhase,dRate,seed,k){
+  function drawLaunch(c,pr,bp,ring,inc,dPhase,dRate,seed,k,lf){
     var cyc=((NOW*0.00009+seed)%1+1)%1; if(cyc>0.82)return;
     var t=Math.min(1,cyc/0.40);
     var dAng=dPhase+dRate*NOW;
@@ -297,7 +297,8 @@ export function createViewer(canvas, config) {
     var P2=[O[0]-ring*0.5*th[0],O[1]-ring*0.5*th[1],O[2]-ring*0.5*th[2]];
     function bez(u){var m=1-u,a=m*m*m,b=3*m*m*u,d=3*m*u*u,e=u*u*u;
       return [a*P0[0]+b*P1[0]+d*P2[0]+e*O[0],a*P0[1]+b*P1[1]+d*P2[1]+e*O[1],a*P0[2]+b*P1[2]+d*P2[2]+e*O[2]];}
-    var p=pr(bez(t));dot(c,p[0],p[1],MARK.rocket*k,'#ffffff',MARK.rocket*1.4*k*S.glow);}   // rocket = plain white; size = MARK.rocket (k here is the constant kl passed in)
+    var p=pr(bez(t));dot(c,p[0],p[1],MARK.rocket*k,'#ffffff',MARK.rocket*1.4*k*S.glow);   // rocket = plain white; size = MARK.rocket (k here is the constant kl passed in)
+    if(lf&&labeled('tanker'))drawLabel(c,p[0],p[1],'Tanker',MARK.rocket*k+6,lf);}          // the launch rockets are tankers
   function fillBg(c,W,H){c.fillStyle=S.bg;c.fillRect(0,0,W,H);}
   function bgDepth(c,W,H){var g=c.createRadialGradient(W/2,H*0.46,0,W/2,H*0.46,Math.max(W,H)*0.62);
     g.addColorStop(0,'rgba(30,42,70,0.22)');g.addColorStop(0.5,'rgba(14,20,36,0.12)');g.addColorStop(1,'rgba(0,0,0,0)');
@@ -405,8 +406,8 @@ export function createViewer(canvas, config) {
         fq=satPlot(fidx);fp=pr([fq[0]*ca-fq[1]*sa, fq[0]*sa+fq[1]*ca, fq[2]]);
         if(occ(fp))continue;bodyOrDot(c,fp[0],fp[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);}}   // escorts = same size as the main drone (MARK.drone · markScale)
     if(P.showHop){
-      drawLaunch(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, AMBS[1].phase, AMBS[1].rate, 0.20, mk);
-      drawLaunch(c,pr,[0,0,0], STAGE_R, P.inc*DEG, AMBS[0].phase, AMBS[0].rate, 0.66, mk);}   // mk → rockets sized by MARK.rocket · markScale
+      drawLaunch(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, AMBS[1].phase, AMBS[1].rate, 0.20, mk, lf);
+      drawLaunch(c,pr,[0,0,0], STAGE_R, P.inc*DEG, AMBS[0].phase, AMBS[0].rate, 0.66, mk, lf);}   // mk → rockets sized by MARK.rocket · markScale
     if(P.showLag){var mw=traj.moon[head],md=Math.hypot(mw[0],mw[1],mw[2])||1,ux=mw[0]/md,uy=mw[1]/md,uz=mw[2]/md;
       drawLag(c,pr([mw[0]-lagR*ux,mw[1]-lagR*uy,mw[2]-lagR*uz]),'L1',k);
       drawLag(c,pr([mw[0]+lagR*ux,mw[1]+lagR*uy,mw[2]+lagR*uz]),'L2',k);}
@@ -416,7 +417,7 @@ export function createViewer(canvas, config) {
     hg.addColorStop(0,'rgba('+hexRGB(S.sat)+',0.55)');hg.addColorStop(0.5,'rgba('+hexRGB(S.sat)+',0.14)');hg.addColorStop(1,'rgba('+hexRGB(S.sat)+',0)');
     c.fillStyle=hg;c.beginPath();c.arc(sh[0],sh[1],db,0,7);c.fill();c.globalCompositeOperation='source-over';
     bodyOrDot(c,sh[0],sh[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);c.restore();   // drone ship size = MARK.drone · markScale
-    if(labeled('drone'))drawLabel(c,sh[0],sh[1],'Drone',MARK.drone*mk+6,lf);
+    if(labeled('otv'))drawLabel(c,sh[0],sh[1],'OTV',MARK.drone*mk+6,lf);   // OTV = the orbital transfer vehicle
   }
 
   // ================= SIZING / LOOP =================
