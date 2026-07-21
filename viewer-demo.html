@@ -53,19 +53,21 @@
       // S: { earth:'#5C8CFF', sat:'#EAF1FF', ... }  // color/style overrides go here
     });
 
-    // Keep the canvas sized to its container. This is the whole "aspect problem" gone:
-    // the page decides the box; the viewer just fits it.
     // Body photos. The core never fetches anything itself — the page loads an <img> and hands it over.
-    // Earth wants an EQUIRECTANGULAR map (2:1 world map): the core sphere-maps it into a real rotating
-    // globe. The Moon is still a full-disc photo, drawn flat, until it has an equirect map of its own.
+    //   earth: MUST be an EQUIRECTANGULAR map (2:1 world map). The core sphere-maps it into a real
+    //          rotating globe, so a full-disc photo would be mapped as if it were a map and look wrong.
+    //   moon:  a full-disc photo, cropped square to the limb. The core lights it by the true sphere
+    //          normal, so it still gets a proper terminator/phase when the Sun is on.
     const setPhoto = (which, url) => {
       const img = new Image();
       img.onload = () => viewer.setBodyImage(which, img, url);
       img.src = url;
     };
     setPhoto('earth', 'assets/flat_earth03.jpg');   // site: swap for its own hosted URL, e.g. /images/sky/earth-daymap.jpg
-    setPhoto('moon',  'assets/moon-disc.jpg');   // cropped square to the disc — a photo with black margin leaves a dark ring inside the clip circle
+    setPhoto('moon',  'assets/moon-disc.jpg');      // black margin around the disc would show as a dark ring inside the clip circle
 
+    // Keep the canvas sized to its container. This is the whole "aspect problem" gone:
+    // the page decides the box; the viewer just fits it.
     const fit = () => viewer.resize(stage.clientWidth, stage.clientHeight);
     if (window.ResizeObserver) new ResizeObserver(fit).observe(stage);
     else window.addEventListener('resize', fit);
