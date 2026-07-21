@@ -137,7 +137,7 @@
       <label class="mini chk"><input type="checkbox" id="showLag"> L1 / L2</label>
       <label class="mini chk"><input type="checkbox" id="showHop" checked> Launches</label>
       <label class="mini chk"><input type="checkbox" id="showFleet"> Escort drones</label>
-      <label class="mini chk"><input type="checkbox" id="showBurns" checked> Burn flashes</label>
+      <label class="mini chk"><input type="checkbox" id="showBurns"> Burn flashes</label>
       <select class="sel" id="fleetSpace" aria-label="Escort spacing"><option value="time">Escorts · by time</option><option value="dist">Escorts · by distance</option></select>
       <label class="mini chk"><input type="checkbox" id="fleetTrail"> Escort trails</label>
       <label class="mini chk"><input type="checkbox" id="sunLight"> Sunlight</label>
@@ -236,7 +236,7 @@
   function periodDays(a,mu){return TWO*Math.sqrt(a*a*a/mu)/DAY;}
 
   // ---- params + trajectory ----
-  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,showBurns:true,sun:true};   // Sun on by default: bodies show a real terminator/phase (Earth globe + Moon disc are both properly lit)
+  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,showBurns:false,sun:true};   // Sun on by default: bodies show a real terminator/phase (Earth globe + Moon disc are both properly lit)
   var traj={moon:[],sat:[],prim:[]}, satPeriod=0, satA=0;
   function computeOrbit(){
     var prim=P.primary, R=(prim==='moon'?R_M:R_E), mu=(prim==='moon'?muM:muE);
