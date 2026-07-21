@@ -1,6 +1,6 @@
 {
   "name": "viewer-core",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "P78 cislunar mission viewer core — canvas simulation, renderer, and animation loop. Run first-party in a page (no iframe).",
   "type": "module",
   "main": "viewer-core.js",

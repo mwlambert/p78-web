@@ -44,7 +44,7 @@ export function createViewer(canvas, config) {
   var CAM_W=TWO/24000;
 
   // ---------- state (config-seeded) ----------
-  var P = assign({mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,sun:false}, config.P);
+  var P = assign({mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,showBurns:false,sun:false}, config.P);
   var S = assign({sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0}, config.S);
   var zoom = config.zoom!=null ? config.zoom : 1;
   var camYaw=0, panX=0, panY=0, camPhi=0, renderPhi=0;   // renderPhi = the phi paint() is currently drawing at → lets bodyOrDot rotate a globe with the camera
@@ -88,7 +88,7 @@ export function createViewer(canvas, config) {
     satA=R+P.alt; satPeriod=periodDays(satA,mu);
     var Tvis=satPeriod*P.periodMul;
     var N=8000, i,t,mp,pp,sr;
-    traj.moon=[];traj.sat=[];traj.prim=[];traj.tel=null;   // telemetry defined for mission mode only
+    traj.moon=[];traj.sat=[];traj.prim=[];traj.tel=null;traj.burns=null;   // telemetry + burns are mission-mode only
     for(i=0;i<=N;i++){
       t=P.span*i/N;
       mp=keplerPos(aMoon,eMoon,iMoon,0,0,trueAnom(TWO*t/Tmoon,eMoon));
@@ -110,17 +110,19 @@ export function createViewer(canvas, config) {
     for(kk=1;kk<=Nr;kk++){rap=stageR*Math.pow(apoTgt/stageR,kk/(Nr+1));var Erk=elt(stageR,rap);
       arcs.push({a:Erk.a,e:Erk.e,M0:0,M1:TWO,dur:periodDays(Erk.a,muE)});}
     var Et=elt(stageR,apoTgt); arcs.push({a:Et.a,e:Et.e,M0:0,M1:Math.PI,dur:0.5*periodDays(Et.a,muE)});
-    var sat=[],satTel=[],sumW=0,wk=[],j,tRun=0,nuS;                         // satTel: real orbital state per outbound sample (telemetry)
+    var sat=[],satTel=[],sumW=0,wk=[],j,tRun=0,nuS,burns=[];                // satTel: telemetry state; burns: impulsive-Δv sample indices (burn flashes)
     var arcMeta=[{ph:'LEO',label:'LEO parking'},{ph:'LEO',label:'Raise to staging'},{ph:'LEO',label:'Staging orbit'}];
     for(kk=1;kk<=Nr;kk++)arcMeta.push({ph:'LEO',label:'Apogee raising'});
     arcMeta.push({ph:'TLI',label:'Trans-lunar injection'});
     for(kk=0;kk<arcs.length;kk++){wk[kk]=Math.sqrt(arcs[kk].dur);sumW+=wk[kk];}
     for(kk=0;kk<arcs.length;kk++){var ar=arcs[kk],st=Math.max(80,Math.round(2600*wk[kk]/sumW)),dt=ar.dur/st,mt=arcMeta[kk];
+      if(kk>0)burns.push({i:sat.length,label:(kk===arcs.length-1?'TLI':'Δv')});   // burn at each transfer-arc start (perigee kick); last outbound = TLI
       for(j=0;j<st;j++){nuS=trueAnom(ar.M0+(ar.M1-ar.M0)*j/st,ar.e);sat.push(conic(ar.a,ar.e,nuS));
         satTel.push({ph:mt.ph,label:mt.label,body:'earth',r:ar.a*(1-ar.e*ar.e)/(1+ar.e*Math.cos(nuS)),a:ar.a,e:ar.e,nu:nuS,t:tRun});tRun+=dt;}}
     sat.push(conic(Et.a,Et.e,Math.PI));
     satTel.push({ph:'TLI',label:'Trans-lunar injection',body:'earth',r:Et.a*(1+Et.e),a:Et.a,e:Et.e,nu:Math.PI,t:tRun});
     var arrival=sat.length-1;
+    burns.push({i:arrival,label:'LOI'});   // lunar orbit insertion (capture into LLO)
     var T_earth=0; for(kk=0;kk<arcs.length;kk++)T_earth+=arcs[kk].dur;
     var coast=Math.max(0.1,P.coast);
     var T_llo=periodDays(r_llo,muM), coils=Math.max(1,coast*Tmoon/(T_llo*P.periodMul));
@@ -156,6 +158,7 @@ export function createViewer(canvas, config) {
       rMeta.push({ph:'LEO',label:'Staging orbit'});rMeta.push({ph:'LEO',label:'Descend to LEO'});rMeta.push({ph:'LEO',label:'LEO parking'});
       for(kk=0;kk<rarcs.length;kk++){wr[kk]=Math.sqrt(rarcs[kk].dur);sumR+=wr[kk];}
       for(kk=0;kk<rarcs.length;kk++){var rc=rarcs[kk],stR=Math.max(80,Math.round(2600*wr[kk]/sumR)),dtR=rc.dur/stR,rmt=rMeta[kk];
+        burns.push({i:all.length,label:(kk===0?'TEI':'Δv')});   // burn at each return-arc start; first = TEI
         for(j2=0;j2<stR;j2++){nuR=trueAnom(rc.M0+(rc.M1-rc.M0)*j2/stR,rc.e);pR=rot(conic(rc.a,rc.e,nuR));
           gidx++;nu=startNu+rate*gidx;mp=keplerPos(aMoon,eMoon,iMoon,0,0,nu);moon.push(mp);prim.push([0,0,0]);all.push(pR);tRun+=dtR;
           tel.push({ph:rmt.ph,label:rmt.label,body:'earth',r:rc.a*(1-rc.e*rc.e)/(1+rc.e*Math.cos(nuR)),a:rc.a,e:rc.e,nu:nuR,t:tRun});}}
@@ -167,7 +170,7 @@ export function createViewer(canvas, config) {
         moon.push(mp);prim.push([0,0,0]);all.push(rot(conic(r_leo,0,dLeoAng*i)));
         tel.push({ph:'LEO',label:'LEO parking',body:'earth',r:r_leo,a:r_leo,e:0,nu:dLeoAng*i,t:tRun});}
     }
-    traj.moon=moon;traj.prim=prim;traj.sat=all;traj.tel=tel;
+    traj.moon=moon;traj.prim=prim;traj.sat=all;traj.tel=tel;traj.burns=burns;
     traj.loopOrbits=rate>0?rate*(moon.length-1)/TWO:0;
     if(!P.roundTrip)traj.missionOrbits=traj.loopOrbits;
     traj.spd=rate>0?(TWO/Tmoon)/rate:80;
@@ -495,6 +498,20 @@ export function createViewer(canvas, config) {
     if(P.showLag){var mw=traj.moon[head],md=Math.hypot(mw[0],mw[1],mw[2])||1,ux=mw[0]/md,uy=mw[1]/md,uz=mw[2]/md;
       drawLag(c,pr([mw[0]-lagR*ux,mw[1]-lagR*uy,mw[2]-lagR*uz]),'L1',k);
       drawLag(c,pr([mw[0]+lagR*ux,mw[1]+lagR*uy,mw[2]+lagR*uz]),'L2',k);}
+    // burn flashes — warm expanding shock at each impulsive-Δv point (TLI / LOI / TEI / staging kicks) as the OTV passes it
+    if(P.showBurns && traj.burns && P.mode==='mission'){var bi,B,dd,inten,bp2,BR,bg2,BURNW=Math.max(24,Math.round(total*0.012));
+      c.save();c.globalCompositeOperation='lighter';
+      for(bi=0;bi<traj.burns.length;bi++){B=traj.burns[bi];dd=head-B.i;
+        if(dd>=0&&dd<BURNW){inten=1-dd/BURNW;bp2=spts[B.i];if(occ(bp2))continue;
+          BR=(4+(1-inten)*20)*kl;
+          bg2=c.createRadialGradient(bp2[0],bp2[1],0,bp2[0],bp2[1],BR);
+          bg2.addColorStop(0,'rgba(255,224,160,'+(0.7*inten).toFixed(3)+')');
+          bg2.addColorStop(0.45,'rgba(255,150,60,'+(0.32*inten).toFixed(3)+')');
+          bg2.addColorStop(1,'rgba(255,120,40,0)');
+          c.fillStyle=bg2;c.beginPath();c.arc(bp2[0],bp2[1],BR,0,7);c.fill();
+          c.strokeStyle='rgba(255,205,130,'+(0.55*inten).toFixed(3)+')';c.lineWidth=Math.max(1,1.3*kl);
+          c.beginPath();c.arc(bp2[0],bp2[1],BR*0.82,0,7);c.stroke();}}
+      c.restore();}
     var sh=spts[head];c.save();c.globalAlpha=(o.env==null?1:o.env);
     var db=MARK.drone*2.3*mk;   // drone-head bloom radius (MARK.drone · markScale)
     c.globalCompositeOperation='lighter';var hg=c.createRadialGradient(sh[0],sh[1],0,sh[0],sh[1],db);
@@ -508,6 +525,11 @@ export function createViewer(canvas, config) {
   function drawMs(){return Math.max(2000,P.animDur*1000);}
   function drawFrame(head,phi,full,env,grow){ telHead=head; paint(ctx,W,H,head,phi,{transparent:false,full:full,env:env,grow:grow}); }
   function staticFull(){ drawFrame(lastHead(), camYaw, true); }
+  // Paint one frame into an arbitrary 2D context at an arbitrary head/phi (drives studio PNG + video export).
+  function renderFrameFn(targetCtx, w, h, opts){ opts=opts||{};
+    if(opts.now!=null) NOW=opts.now;                                   // advance rocket/star/globe timing for video
+    var head=opts.head!=null?opts.head:lastHead(), phi=opts.phi!=null?opts.phi:camYaw;
+    paint(targetCtx, w, h, head, phi, {transparent:!!opts.transparent, full:!!opts.full, env:opts.env, grow:!!opts.grow}); }
 
   var playing = !reduce, t0=null, rafId=null;
   function frame(now){ if(t0===null)t0=now; NOW=now; camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
@@ -615,8 +637,15 @@ export function createViewer(canvas, config) {
     play: play,
     pause: pause,
     resize: resize,                                   // resize(cssW, cssH[, dpr])
-    // Paint one frame into an arbitrary 2D context (used by the studio's PNG/video export).
-    snapshot: function(targetCtx, w, h, opts){ paint(targetCtx, w, h, lastHead(), camYaw, assign({transparent:false, full:true}, opts||{})); },
+    // Paint one static full frame (last head, current camera) into an arbitrary 2D context — studio PNG.
+    snapshot: function(targetCtx, w, h, opts){ renderFrameFn(targetCtx, w, h, assign({full:true}, opts||{})); },
+    // Paint an arbitrary frame: opts {head, phi, grow, transparent, env, now} — studio video/draw-sequence export.
+    renderFrame: renderFrameFn,
+    // Geometry access for studio SVG export (world→screen). project(pt)=getProjector(...)(pt).
+    getProjector: function(w, h, phi){ return projector(w, h, phi!=null?phi:camYaw); },
+    satPlot: satPlot,                                 // world position of trajectory sample i (applies orbit-mode magnify)
+    lastHead: lastHead,                               // final sample index
+    skf: skf,                                         // studio's body-size scale factor skf(W,H)
     setBodyImage: function(which, img, url){ bodyImg[which]=img; bodyData[which]=url||null; if(!playing) staticFull(); },
     getState: function(){ return { P:P, S:S, zoom:zoom, camYaw:camYaw, panX:panX, panY:panY, satPeriod:satPeriod, traj:traj, NOW:NOW, telemetry:telemetry(telHead) }; },
     isPlaying: function(){ return playing; },
