@@ -54,17 +54,18 @@
     });
 
     // Body photos. The core never fetches anything itself — the page loads an <img> and hands it over.
-    //   earth: MUST be an EQUIRECTANGULAR map (2:1 world map). The core sphere-maps it into a real
-    //          rotating globe, so a full-disc photo would be mapped as if it were a map and look wrong.
-    //   moon:  a full-disc photo, cropped square to the limb. The core lights it by the true sphere
-    //          normal, so it still gets a proper terminator/phase when the Sun is on.
+    // It picks the treatment from the image's aspect, so either kind works for either body:
+    //   2:1  → equirectangular map  → sphere-mapped into a real globe that rotates with the camera
+    //   ~1:1 → full-disc photo      → already an orthographic view, so it's lit by the true normal
+    // Both get a correct terminator/phase when the Sun is on. A disc photo should be cropped square
+    // to the limb — leftover black margin shows as a dark ring inside the clip circle.
     const setPhoto = (which, url) => {
       const img = new Image();
       img.onload = () => viewer.setBodyImage(which, img, url);
       img.src = url;
     };
     setPhoto('earth', 'assets/flat_earth03.jpg');   // site: swap for its own hosted URL, e.g. /images/sky/earth-daymap.jpg
-    setPhoto('moon',  'assets/moon-disc.jpg');      // black margin around the disc would show as a dark ring inside the clip circle
+    setPhoto('moon',  'assets/moon-map.jpg');       // equirectangular lunar map → rotating Moon globe
 
     // Keep the canvas sized to its container. This is the whole "aspect problem" gone:
     // the page decides the box; the viewer just fits it.

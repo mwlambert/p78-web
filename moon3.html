@@ -503,10 +503,15 @@
     return [rx, y1*ct-SUNW[2]*st, y1*st+SUNW[2]*ct];}
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k,lit,sCam){var im=bodyImg[which];
     if(im&&im.complete&&im.naturalWidth){
-      if(which==='earth'){var IT=imgTex('earth',im);   // equirectangular map → real 3D globe: sphere-mapped, turns with camera yaw (renderPhi) + gentle spin; flat-lit when Sun off, terminator when on. (Moon stays on the flat disc path until it has an equirect map — a disc photo can't be sphere-mapped.)
-        var GR=dotR*bscale();shadedGlobe(c,x,y,GR,IT.day,IT.lights,-renderPhi/6.2831853+NOW*0.0000038,sCam||[-0.6,0.5,0.6],0.05,!P.sun);bodyHalo(c,x,y,GR,sCam,!P.sun,true);return;}
-      if(which==='moon'){var MT=imgTex('moon',im),MR=dotR*bscale();   // disc photo lit by the true sphere normal → real terminator/phase when the Sun is on
-        shadedDisc(c,x,y,MR,MT.day,sCam||[-0.6,0.5,0.6],0.015,!P.sun);bodyHalo(c,x,y,MR,sCam,!P.sun,false);return;}
+      if(which==='earth'||which==='moon'){var IT=imgTex(which,im),BR=dotR*bscale(),isE=(which==='earth'),amb=isE?0.05:0.015;
+        // Pick the treatment from the image itself rather than the body: a 2:1 equirectangular map gets
+        // sphere-mapped into a rotating globe; a ~square full-disc photo is already an orthographic view,
+        // so it's lit by the true normal instead. Either asset works for either body.
+        if(im.naturalWidth>=im.naturalHeight*1.7)
+          shadedGlobe(c,x,y,BR,IT.day,IT.lights,-renderPhi/6.2831853+NOW*(isE?0.0000038:0.0000016),sCam||[-0.6,0.5,0.6],amb,!P.sun);
+        else
+          shadedDisc(c,x,y,BR,IT.day,sCam||[-0.6,0.5,0.6],amb,!P.sun);
+        bodyHalo(c,x,y,BR,sCam,!P.sun,isE);return;}
       var d=2*dotR*bscale();c.save();c.beginPath();c.arc(x,y,d/2,0,7);c.clip();c.drawImage(im,x-d/2,y-d/2,d,d);var lg=c.createRadialGradient(x,y,d*0.36,x,y,d/2);lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(0.7,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0.55)');c.fillStyle=lg;c.fillRect(x-d/2,y-d/2,d,d);c.restore();return;}   // non-globe image (e.g. sat icon): flat clipped disc + limb
     if(which==='earth'||which==='moon'){var T=which==='earth'?earthTex():moonTex();
       drawGlobe(c,x,y,dotR,T.day,T.lights,NOW*(which==='earth'?0.0000038:0.0000016),which==='earth',hex,blur,sCam||[-0.6,0.5,0.6],!P.sun);
@@ -890,7 +895,7 @@
     rd.readAsDataURL(f);});}
   loadBody('sat','imgSat');loadBody('moon','imgMoon');loadBody('earth','imgEarth');
   (function(){var im=new Image();im.onload=function(){bodyImg.earth=im;bodyData.earth=im.src;refreshStatic();};im.src='assets/flat_earth03.jpg';})();   // default Earth = equirectangular daymap (bright oceans + clouds) → sphere-mapped 3D globe (Reset bodies to go back to the procedural globe)
-  (function(){var im=new Image();im.onload=function(){bodyImg.moon=im;bodyData.moon=im.src;refreshStatic();};im.src='assets/moon-disc.jpg';})();               // default Moon = full-moon photo, cropped square to the disc so the limb meets the clip circle (no black margin ring, halo hugs the limb)
+  (function(){var im=new Image();im.onload=function(){bodyImg.moon=im;bodyData.moon=im.src;refreshStatic();};im.src='assets/moon-map.jpg';})();               // default Moon = equirectangular lunar map → sphere-mapped 3D globe (as with Earth)
   document.getElementById('bscale').addEventListener('input',function(){document.getElementById('bscaleV').textContent=parseFloat(this.value).toFixed(1);refreshStatic();});
   document.getElementById('bReset').addEventListener('click',function(){bodyImg={sat:null,moon:null,earth:null};bodyData={sat:null,moon:null,earth:null};
     ['imgSat','imgMoon','imgEarth'].forEach(function(id){document.getElementById(id).value='';});refreshStatic();exNote.textContent='Bodies reset to default.';});
