@@ -64,8 +64,8 @@
       img.onload = () => viewer.setBodyImage(which, img, url);
       img.src = url;
     };
-    setPhoto('earth', 'assets/flat_earth03.jpg');   // site: swap for its own hosted URL, e.g. /images/sky/earth-daymap.jpg
-    setPhoto('moon',  'assets/moon-map.jpg');       // equirectangular lunar map → rotating Moon globe
+    setPhoto('earth', 'assets/earth-map.jpg');   // equirectangular daymap → rotating Earth globe. Site: swap for its own hosted URL, e.g. /images/sky/earth-map.jpg
+    setPhoto('moon',  'assets/moon-map.jpg');    // equirectangular lunar map → rotating Moon globe
 
     // Keep the canvas sized to its container. This is the whole "aspect problem" gone:
     // the page decides the box; the viewer just fits it.

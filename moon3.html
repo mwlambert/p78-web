@@ -894,7 +894,7 @@
       im.onerror=function(){exNote.textContent='Could not load that '+which+' image (SVGs need a width/height).';};im.src=url;};
     rd.readAsDataURL(f);});}
   loadBody('sat','imgSat');loadBody('moon','imgMoon');loadBody('earth','imgEarth');
-  (function(){var im=new Image();im.onload=function(){bodyImg.earth=im;bodyData.earth=im.src;refreshStatic();};im.src='assets/flat_earth03.jpg';})();   // default Earth = equirectangular daymap (bright oceans + clouds) → sphere-mapped 3D globe (Reset bodies to go back to the procedural globe)
+  (function(){var im=new Image();im.onload=function(){bodyImg.earth=im;bodyData.earth=im.src;refreshStatic();};im.src='assets/earth-map.jpg';})();   // default Earth = equirectangular daymap (bright oceans + clouds) → sphere-mapped 3D globe (Reset bodies to go back to the procedural globe)
   (function(){var im=new Image();im.onload=function(){bodyImg.moon=im;bodyData.moon=im.src;refreshStatic();};im.src='assets/moon-map.jpg';})();               // default Moon = equirectangular lunar map → sphere-mapped 3D globe (as with Earth)
   document.getElementById('bscale').addEventListener('input',function(){document.getElementById('bscaleV').textContent=parseFloat(this.value).toFixed(1);refreshStatic();});
   document.getElementById('bReset').addEventListener('click',function(){bodyImg={sat:null,moon:null,earth:null};bodyData={sat:null,moon:null,earth:null};
