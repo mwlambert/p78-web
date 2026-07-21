@@ -47,7 +47,7 @@ export function createViewer(canvas, config) {
   var P = assign({mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,sun:false}, config.P);
   var S = assign({sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0}, config.S);
   var zoom = config.zoom!=null ? config.zoom : 1;
-  var camYaw=0, panX=0, panY=0, camPhi=0;
+  var camYaw=0, panX=0, panY=0, camPhi=0, renderPhi=0;   // renderPhi = the phi paint() is currently drawing at → lets bodyOrDot rotate a globe with the camera
   var cxFrac = config.cx!=null ? config.cx : 0.5;      // scene centre as a fraction of W/H (default 0.5 = middle).
   var cyFrac = config.cy!=null ? config.cy : 0.5;      // e.g. cy:0.7 drops the scene into the lower gap behind copy.
   var bscaleVal = config.bscale!=null ? config.bscale : 1;
@@ -245,6 +245,8 @@ export function createViewer(canvas, config) {
       g.beginPath();g.arc(px-r*0.18,cy-r*0.18,r*0.5,0,7);g.fillStyle=rgbs(shade(b,0.05));g.fill();}}
     return {cv:cv,lights:null};}
   function texData(cv){return cv.getContext('2d').getImageData(0,0,cv.width,cv.height);}
+  var imgTexCache={};   // equirectangular body photo → ImageData for shadedGlobe sphere-mapping; cached per image src
+  function imgTex(which,im){var e=imgTexCache[which];if(!e||e.src!==im.src){var cv=document.createElement('canvas');cv.width=im.naturalWidth;cv.height=im.naturalHeight;cv.getContext('2d').drawImage(im,0,0);e={src:im.src,day:texData(cv),lights:null};imgTexCache[which]=e;}return e;}
   function SGBUF(d){var b=sgbuf[d];if(!b){var cv=document.createElement('canvas');cv.width=d;cv.height=d;b={cv:cv,ctx:cv.getContext('2d')};sgbuf[d]=b;}return b;}
   function earthTex(){if(texCache.ek!==S.earth){var t=buildEarthTex(S.earth);texCache.earth={day:texData(t.cv),lights:texData(t.lights)};texCache.ek=S.earth;}return texCache.earth;}
   function moonTex(){if(texCache.mk!==S.moon){var t=buildMoonTex(S.moon);texCache.moon={day:texData(t.cv),lights:null};texCache.mk=S.moon;}return texCache.moon;}
@@ -255,11 +257,13 @@ export function createViewer(canvas, config) {
     for(py=0;py<d;py++){var nyd=(py+0.5-R)/R;
       for(px=0;px<d;px++){var nx=(px+0.5-R)/R,r2=nx*nx+nyd*nyd;o=(py*d+px)*4;
         if(r2>1){data[o+3]=0;continue;}
-        var u=((px/d)+frac)%1;if(u<0)u+=1;var v=nyd*0.5+0.5;
+        var nz=Math.sqrt(1-r2);                                          // sphere normal toward the viewer
+        var v=0.5+Math.asin(nyd)/Math.PI;                                // true latitude → poles converge to points (no polar smear)
+        var u=(0.5+Math.atan2(nx,nz)/6.2831853+frac)%1;if(u<0)u+=1;      // true longitude → foreshortens toward the limb
         var tx=(u*tw)|0,ty=(v*th)|0;if(ty<0)ty=0;if(ty>=th)ty=th-1;if(tx>=tw)tx=tw-1;var to=(ty*tw+tx)*4;
         var br,tf;
         if(flat){br=1-0.32*r2;}
-        else{var nz=Math.sqrt(1-r2),lam=nx*sr+(-nyd)*su+nz*sv;tf=lam+0.14;tf=tf<0?0:tf>0.28?1:tf/0.28;br=ambient+(1-ambient)*tf;}
+        else{var lam=nx*sr+(-nyd)*su+nz*sv;tf=lam+0.14;tf=tf<0?0:tf>0.28?1:tf/0.28;br=ambient+(1-ambient)*tf;}
         data[o]=td[to]*br;data[o+1]=td[to+1]*br;data[o+2]=td[to+2]*br;data[o+3]=255;
         if(ld&&!flat){var la=ld[to+3];if(la>0){var ad=(la/255)*(0.45+0.55*(1-tf));
           data[o]=cl255(data[o]+ld[to]*ad);data[o+1]=cl255(data[o+1]+ld[to+1]*ad);data[o+2]=cl255(data[o+2]+ld[to+2]*ad);}}
@@ -268,14 +272,64 @@ export function createViewer(canvas, config) {
     c.save();c.beginPath();c.arc(x,y,R,0,7);c.clip();c.drawImage(buf.cv,x-R,y-R);c.restore();}
   function drawGlobe(c,x,y,R,day,lights,rot,isEarth,hex,blur,sCam,flat){
     shadedGlobe(c,x,y,R,day,lights,rot,sCam,isEarth?0.05:0.015,flat);}
+  // A full-disc photo is ALREADY an orthographic view of the sphere, so pixel↔normal is 1:1 — no texture
+  // mapping needed. Sample the photo directly and light it by the true normal, giving a real terminator/phase.
+  // (This is how the Moon gets sunlight without an equirectangular map.)
+  function shadedDisc(c,x,y,R,dayD,sCam,ambient,flat){
+    var d=Math.max(4,Math.ceil(2*R)),buf=SGBUF(d),bx=buf.ctx,img=bx.createImageData(d,d),data=img.data;
+    var tw=dayD.width,th=dayD.height,td=dayD.data,sr=sCam[0],su=sCam[1],sv=sCam[2],px,py,o;
+    for(py=0;py<d;py++){var nyd=(py+0.5-R)/R,ty=((py/d)*th)|0;if(ty>=th)ty=th-1;
+      for(px=0;px<d;px++){var nx=(px+0.5-R)/R,r2=nx*nx+nyd*nyd;o=(py*d+px)*4;
+        if(r2>1){data[o+3]=0;continue;}
+        var tx=((px/d)*tw)|0;if(tx>=tw)tx=tw-1;var to=(ty*tw+tx)*4;
+        var br;
+        if(flat){br=1-0.32*r2;}
+        else{var nz=Math.sqrt(1-r2),lam=nx*sr+(-nyd)*su+nz*sv,tf=lam+0.14;tf=tf<0?0:tf>0.28?1:tf/0.28;br=ambient+(1-ambient)*tf;}
+        data[o]=td[to]*br;data[o+1]=td[to+1]*br;data[o+2]=td[to+2]*br;data[o+3]=255;
+      }}
+    bx.putImageData(img,0,0);
+    c.save();c.beginPath();c.arc(x,y,R,0,7);c.clip();c.drawImage(buf.cv,x-R,y-R);c.restore();}
+  // Earth: blue Rayleigh halo (real atmosphere, leans to the sunlit limb). Moon: airless, so its glow is a faint
+  // neutral bloom (camera glare), deliberately tighter+weaker than Earth's. Scales with S.glow; S.glow=0 disables.
+  var hbuf={};
+  function HBUF(d){var b=hbuf[d];if(!b){var cv=document.createElement('canvas');cv.width=d;cv.height=d;b={cv:cv,ctx:cv.getContext('2d')};hbuf[d]=b;}return b;}
+  function bodyHalo(c,x,y,R,sCam,flat,isEarth){var gm=(S.glow==null?1:S.glow);if(gm<=0||R<=0)return;
+    var s=sCam||[-0.6,0.5,0.6];
+    var out=isEarth?1.26:1.14,col=isEarth?'95,165,255':'214,226,240';
+    // Composited offscreen: the night-side fade below needs destination-out, which on the main canvas
+    // would erase the starfield showing through the ring. Build it in a buffer, then add it with 'lighter'.
+    var D=Math.max(8,Math.ceil(2*R*out)),b=HBUF(D),bc=b.ctx,cx=D/2,cy=D/2,bR=D/(2*out);
+    bc.setTransform(1,0,0,1,0,0);bc.clearRect(0,0,D,D);bc.globalCompositeOperation='source-over';
+    var ox=flat?cx:cx+s[0]*bR*0.10,oy=flat?cy:cy-s[1]*bR*0.10;
+    var g=bc.createRadialGradient(ox,oy,bR*0.97,cx,cy,bR*out);
+    g.addColorStop(0,'rgba('+col+','+(isEarth?0.55:0.20)*gm+')');
+    g.addColorStop(0.38,'rgba('+col+','+(isEarth?0.22:0.07)*gm+')');
+    g.addColorStop(1,'rgba('+col+',0)');
+    // Ring only (disc punched out): additive blue over bright cloud just washes to white, so keep the
+    // halo outside the limb where it reads against space — which is where atmosphere is actually visible.
+    bc.save();bc.beginPath();bc.arc(cx,cy,bR*out,0,6.2831853);bc.moveTo(cx+bR*0.995,cy);bc.arc(cx,cy,bR*0.995,0,6.2831853,true);bc.clip();   // moveTo is required: without it canvas joins the two arcs with a straight line and notches the ring
+    bc.fillStyle=g;bc.fillRect(0,0,D,D);bc.restore();
+    if(!flat){   // Sun on: air only scatters where it's lit, so fade the halo out across the terminator (screen-space sun dir = [sr,-su])
+      var lx=s[0],ly=-s[1],m=Math.hypot(lx,ly);
+      if(m>1e-4){lx/=m;ly/=m;
+        var lg=bc.createLinearGradient(cx+lx*bR*out,cy+ly*bR*out,cx-lx*bR*out,cy-ly*bR*out);
+        lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(0.5,'rgba(0,0,0,0.55)');lg.addColorStop(1,'rgba(0,0,0,1)');
+        bc.globalCompositeOperation='destination-out';bc.fillStyle=lg;bc.fillRect(0,0,D,D);bc.globalCompositeOperation='source-over';}}
+    c.save();c.globalCompositeOperation='lighter';c.drawImage(b.cv,x-cx,y-cy);c.restore();}
   var SUNW=(function(){var v=[0.68,-0.42,0.60],m=Math.hypot(v[0],v[1],v[2]);return[v[0]/m,v[1]/m,v[2]/m];})();
   function sunCam(phi){var tl=S.tilt*DEG,ct=Math.cos(tl),st=Math.sin(tl),cph=Math.cos(phi),sph=Math.sin(phi);
     var rx=SUNW[0]*cph-SUNW[1]*sph,y1=SUNW[0]*sph+SUNW[1]*cph;
     return [rx, y1*ct-SUNW[2]*st, y1*st+SUNW[2]*ct];}
   function bodyOrDot(c,x,y,which,dotR,hex,blur,k,lit,sCam){var im=bodyImg[which];
-    if(im&&im.complete&&im.naturalWidth){var d=2*dotR*bscale();c.save();c.beginPath();c.arc(x,y,d/2,0,7);c.clip();c.drawImage(im,x-d/2,y-d/2,d,d);var lg=c.createRadialGradient(x,y,d*0.36,x,y,d/2);lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(0.7,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0.55)');c.fillStyle=lg;c.fillRect(x-d/2,y-d/2,d,d);c.restore();return;}   // clipped disc, limb-darkened edge → reads as a lit sphere; sized to true radius (dotR); bscale = fine-tune
+    if(im&&im.complete&&im.naturalWidth){
+      if(which==='earth'){var IT=imgTex('earth',im);   // equirectangular map → real 3D globe: sphere-mapped, turns with camera yaw (renderPhi) + gentle spin; flat-lit when Sun off, terminator when on. (Moon stays on the flat disc path until it has an equirect map — a disc photo can't be sphere-mapped.)
+        var GR=dotR*bscale();shadedGlobe(c,x,y,GR,IT.day,IT.lights,-renderPhi/6.2831853+NOW*0.0000038,sCam||[-0.6,0.5,0.6],0.05,!P.sun);bodyHalo(c,x,y,GR,sCam,!P.sun,true);return;}
+      if(which==='moon'){var MT=imgTex('moon',im),MR=dotR*bscale();   // disc photo lit by the true sphere normal → real terminator/phase when the Sun is on
+        shadedDisc(c,x,y,MR,MT.day,sCam||[-0.6,0.5,0.6],0.015,!P.sun);bodyHalo(c,x,y,MR,sCam,!P.sun,false);return;}
+      var d=2*dotR*bscale();c.save();c.beginPath();c.arc(x,y,d/2,0,7);c.clip();c.drawImage(im,x-d/2,y-d/2,d,d);var lg=c.createRadialGradient(x,y,d*0.36,x,y,d/2);lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(0.7,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0.55)');c.fillStyle=lg;c.fillRect(x-d/2,y-d/2,d,d);c.restore();return;}   // non-globe image (e.g. sat icon): flat clipped disc + limb
     if(which==='earth'||which==='moon'){var T=which==='earth'?earthTex():moonTex();
-      drawGlobe(c,x,y,dotR,T.day,T.lights,NOW*(which==='earth'?0.0000038:0.0000016),which==='earth',hex,blur,sCam||[-0.6,0.5,0.6],!P.sun);return;}
+      drawGlobe(c,x,y,dotR,T.day,T.lights,NOW*(which==='earth'?0.0000038:0.0000016),which==='earth',hex,blur,sCam||[-0.6,0.5,0.6],!P.sun);
+      bodyHalo(c,x,y,dotR,sCam,!P.sun,which==='earth');return;}
     if(lit){
       if(blur>0){c.save();c.shadowColor=hex;c.shadowBlur=blur;c.fillStyle=hex;c.beginPath();c.arc(x,y,dotR*0.85,0,7);c.fill();c.restore();}
       var g=c.createRadialGradient(x-dotR*0.42,y-dotR*0.5,dotR*0.12,x,y,dotR*1.04);
@@ -379,7 +433,7 @@ export function createViewer(canvas, config) {
     c.shadowColor='rgba(0,0,0,0.7)';c.shadowBlur=3;                     // subtle backing so text stays legible over lines/stars
     c.fillStyle='rgba(220,228,242,0.92)';c.fillText(text, x+off, y);c.restore(); }
   function paint(c,W,H,head,phi,o){
-    o=o||{};var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl*Math.sqrt(markScale)*labelScale))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
+    o=o||{};renderPhi=phi;var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl*Math.sqrt(markScale)*labelScale))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}

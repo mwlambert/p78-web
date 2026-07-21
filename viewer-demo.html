@@ -47,13 +47,25 @@
         mode: 'mission', primary: 'earth',
         alt: 420, e: 0, inc: 20, mag: 8, span: 8,
         raise: 3, coast: 1, periodMul: 34,
-        animDur: 60, roundTrip: true, sun: false
+        animDur: 60, roundTrip: true,
+        sun: (q.get('sun') === '1')   // ?sun=1 → directional sunlight: bodies show a lit phase + terminator
       }
       // S: { earth:'#5C8CFF', sat:'#EAF1FF', ... }  // color/style overrides go here
     });
 
     // Keep the canvas sized to its container. This is the whole "aspect problem" gone:
     // the page decides the box; the viewer just fits it.
+    // Body photos. The core never fetches anything itself — the page loads an <img> and hands it over.
+    // Earth wants an EQUIRECTANGULAR map (2:1 world map): the core sphere-maps it into a real rotating
+    // globe. The Moon is still a full-disc photo, drawn flat, until it has an equirect map of its own.
+    const setPhoto = (which, url) => {
+      const img = new Image();
+      img.onload = () => viewer.setBodyImage(which, img, url);
+      img.src = url;
+    };
+    setPhoto('earth', 'assets/flat_earth03.jpg');   // site: swap for its own hosted URL, e.g. /images/sky/earth-daymap.jpg
+    setPhoto('moon',  'assets/moon-disc.jpg');   // cropped square to the disc — a photo with black margin leaves a dark ring inside the clip circle
+
     const fit = () => viewer.resize(stage.clientWidth, stage.clientHeight);
     if (window.ResizeObserver) new ResizeObserver(fit).observe(stage);
     else window.addEventListener('resize', fit);
