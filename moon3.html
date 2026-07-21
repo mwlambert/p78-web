@@ -551,6 +551,18 @@
   function bgDepth(c,W,H){var g=c.createRadialGradient(W/2,H*0.46,0,W/2,H*0.46,Math.max(W,H)*0.62);   // subtle cool center-lift for depth
     g.addColorStop(0,'rgba(30,42,70,0.22)');g.addColorStop(0.5,'rgba(14,20,36,0.12)');g.addColorStop(1,'rgba(0,0,0,0)');
     c.fillStyle=g;c.fillRect(0,0,W,H);}
+  // The depth gradient spans only ~15 brightness levels across hundreds of px, so on 8-bit panels it
+  // quantises into visible concentric rings (obvious on cheap/TN screens, invisible on a good one).
+  // Dither it: add sub-level noise so pixels round to either side of a step and the band edges dissolve.
+  var noiseCv=null;
+  function noiseTile(){if(!noiseCv){var n=64,cv=document.createElement('canvas');cv.width=n;cv.height=n;
+      var g2=cv.getContext('2d'),im=g2.createImageData(n,n),d=im.data,i,v,seed=987654321;
+      for(i=0;i<n*n;i++){seed=(seed*1103515245+12345)&0x7fffffff;v=(seed/0x7fffffff*255)|0;
+        d[i*4]=v;d[i*4+1]=v;d[i*4+2]=v;d[i*4+3]=255;}
+      g2.putImageData(im,0,0);noiseCv=cv;}return noiseCv;}
+  function bgDither(c,W,H){   // pattern is built per call (cheap) so this is safe on export/snapshot contexts too
+    c.save();c.globalCompositeOperation='lighter';c.globalAlpha=0.014;   // ~±2 levels: kills the rings, mean lift is imperceptible
+    c.fillStyle=c.createPattern(noiseTile(),'repeat');c.fillRect(0,0,W,H);c.restore();}
   var MWBN=(function(){var v=[0.32,0.44,0.84],m=Math.hypot(v[0],v[1],v[2]);return[v[0]/m,v[1]/m,v[2]/m];})();   // Milky Way band-plane normal
   var STARS=(function(){var a=[],seed=20240718,rnd=function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;},i,u,th,r,bn=MWBN;
     for(i=0;i<1200;i++){u=rnd()*2-1;th=rnd()*TWO;r=Math.sqrt(1-u*u);                 // uniform 3D field
@@ -613,7 +625,7 @@
     c.restore();}
 
   function paint(c,W,H,head,phi,o){
-    o=o||{};renderPhi=phi;var k=skf(W,H)*zoom,kl=skf(W,H),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);drawStars(c,W,H,phi);}   // k = mark scale (scales with zoom: bodies/orbits); kl = stroke scale (constant, no zoom) so lines stay thin when zooming
+    o=o||{};renderPhi=phi;var k=skf(W,H)*zoom,kl=skf(W,H),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);bgDither(c,W,H);drawStars(c,W,H,phi);}   // k = mark scale (scales with zoom: bodies/orbits); kl = stroke scale (constant, no zoom) so lines stay thin when zooming
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
     // Moon's orbit (full reference ring)
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl;c.beginPath();
