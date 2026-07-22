@@ -143,6 +143,7 @@
       <label class="mini chk"><input type="checkbox" id="sunLight"> Sunlight</label>
       <div class="ctl" style="min-width:190px"><label>Animation <span class="val"><span id="animdurV">60</span> s</span></label><input type="range" id="animdur" min="3" max="120" step="1" value="60"></div>
       <button class="btn" id="play" aria-label="Pause animation">Pause</button>
+      <button class="btn" id="fs" aria-label="Fill the screen">Fullscreen</button>
     </div>
   </div>
 
@@ -150,8 +151,6 @@
     <div class="exhead">Style — tune, then Copy link to hand off the design</div>
     <div class="row">
       <label class="mini col">Sat path <input type="color" id="cSat" value="#EAF1FF"></label>
-      <label class="mini col">Moon <input type="color" id="cMoon" value="#B9C2D0"></label>
-      <label class="mini col">Earth <input type="color" id="cEarth" value="#5C8CFF"></label>
       <label class="mini col">Moon orbit <input type="color" id="cRef" value="#454b58"></label>
       <label class="mini col">Background <input type="color" id="cBg" value="#000000"></label>
     </div>
@@ -229,6 +228,7 @@ import { createViewer } from './viewer-core.js';
     else f=(P.primary==='moon'?'Satellite coils around the Moon as the Moon orbits Earth. ':'Satellite orbits Earth. ')+'Period '+(sp*24).toFixed(2)+' h · ×'+P.mag+pv+'.';
     var fe=document.getElementById('foot'); if(fe) fe.innerHTML=f; }
   function fit(){ if(!viewer) return;
+    if(document.fullscreenElement===VIEW){ viewer.resize(window.innerWidth, window.innerHeight); return; }   // movie-mode: canvas fills the whole screen
     var w=EMBED?window.innerWidth:(VIEW.parentNode.clientWidth||VIEW.clientWidth||800);
     var vp=document.querySelector('.viewport'), vpH=EMBED?window.innerHeight:(vp?vp.clientHeight:Math.round(w*0.9));
     var h=EMBED?vpH:Math.max(340, vpH-206);
@@ -248,6 +248,17 @@ import { createViewer } from './viewer-core.js';
   playEl.addEventListener('click',function(){ if(!viewer)return; if(viewer.isPlaying())viewer.pause(); else viewer.play();
     var pl=viewer.isPlaying(); playEl.textContent=pl?'Pause':'Play'; playEl.setAttribute('aria-label',(pl?'Pause':'Play')+' animation'); });
   window.addEventListener('resize',fit);
+
+  // ---- fullscreen: canvas fills the screen, movie-style (replaces the moon4/moon5 wrapper pages) ----
+  var fsBtn=document.getElementById('fs');
+  if(fsBtn){
+    if(!(VIEW.requestFullscreen||document.fullscreenEnabled)) fsBtn.style.display='none';
+    fsBtn.addEventListener('click',function(){
+      if(document.fullscreenElement){ document.exitFullscreen(); }
+      else if(VIEW.requestFullscreen){ VIEW.requestFullscreen().catch(function(){}); } });
+    document.addEventListener('fullscreenchange',function(){
+      fsBtn.textContent=document.fullscreenElement?'Exit fullscreen':'Fullscreen'; fit(); });
+  }
 
   // ---- interactive camera: drag = rotate (yaw + tilt), scroll = zoom, dbl-click = reset ----
 
@@ -370,7 +381,7 @@ import { createViewer } from './viewer-core.js';
   (function(){var im=new Image();im.onload=function(){if(viewer)viewer.setBodyImage('moon',im,im.src);bodyData.moon=im.src;};im.src='assets/moon-map.jpg';})();               // default Moon = equirectangular lunar map → globe
 
   // style + URL state
-  var styleCtl=[['cSat','sat','c'],['cMoon','moon','c'],['cEarth','earth','c'],['cRef','ref','c'],['cBg','bg','c'],
+  var styleCtl=[['cSat','sat','c'],['cRef','ref','c'],['cBg','bg','c'],
     ['sLw','lw','n'],['sGlow','glow','n'],['sRefop','refop','n'],['sTilt','tilt','n'],['sDrift','drift','n']];
   function setTxt(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
   function syncStyleLabels(){setTxt('lwV',(+S.lw).toFixed(2));setTxt('glowV',(+S.glow).toFixed(2));setTxt('refopV',(+S.refop).toFixed(2));setTxt('tiltV',Math.round(S.tilt));setTxt('driftV',(+S.drift).toFixed(2));}

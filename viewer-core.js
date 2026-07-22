@@ -455,7 +455,7 @@ export function createViewer(canvas, config) {
   function paint(c,W,H,head,phi,o){
     o=o||{};renderPhi=phi;var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl*Math.sqrt(markScale)*labelScale))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);bgDither(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
-    if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl;c.beginPath();
+    if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl*S.lw;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
     var eP=pr([0,0,0]), mP=pr(traj.moon[head]);
     var SCbody=Math.min(W,H)*0.5/((traj.rMax||aMoon)*1.14)*zoom;                     // projector's linear scale (px per sim-unit)
@@ -484,7 +484,7 @@ export function createViewer(canvas, config) {
         else{foff=Math.round(fd/(NF+1)*mSamp);}
         fa=rt*foff;ca=Math.cos(fa);sa=Math.sin(fa);
         fidx=((head-foff)%total+total)%total;
-        if(P.fleetTrail){c.lineWidth=1*kl;pa2=null;pi2=-9;
+        if(P.fleetTrail){c.lineWidth=1*kl*S.lw;pa2=null;pi2=-9;
           for(jj=0;jj<TL;jj+=2){ci2=((fidx-jj)%total+total)%total;
             qb=satPlot(ci2);pb2=pr([qb[0]*ca-qb[1]*sa, qb[0]*sa+qb[1]*ca, qb[2]]);
             if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5;
