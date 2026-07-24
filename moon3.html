@@ -409,7 +409,7 @@ import { createViewer } from './viewer-core.js';
   // ---- init ----
   (function(){var pr=PRESETS.mission,k;for(k in pr)P[k]=pr[k];presetEl.value='mission';})();   // default view = Mission LEO→TLI→LLO
   loadFromHash();
-  if(/[?&]fleet=1/.test(location.search))P.showFleet=true;                          // URL flags (used by moon5.html)
+  if(/[?&]fleet=1/.test(location.search))P.showFleet=true;                          // ?fleet=1 / ?fleettrail=1 → convoy on (e.g. moon3.html?embed=1&fleettrail=1)
   if(/[?&]fleettrail=1/.test(location.search)){P.showFleet=true;P.fleetTrail=true;}
   var _am=location.search.match(/[?&]anim=(\d+(?:\.\d+)?)/);if(_am)P.animDur=parseFloat(_am[1]);   // ?anim=NN → loop seconds
   var zoom0=EMBED?0.8:1;                                                                                               // embed frames a touch wider; direct view stays at 1
