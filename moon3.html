@@ -130,24 +130,38 @@
     <div class="row" id="missionRow">
       <div class="ctl"><label>Raising steps <span class="val" id="raiseV">3</span></label><input type="range" id="raise" min="1" max="6" step="1" value="3"></div>
       <div class="ctl"><label>Coast — Moon laps <span class="val" id="coastV">1.00</span></label><input type="range" id="coast" min="0.25" max="2" step="0.05" value="1"></div>
-      <div class="ctl" style="justify-content:flex-end"><label class="mini chk" style="text-transform:none"><input type="checkbox" id="roundTrip" checked> Return to LEO (round trip)</label></div>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="exhead">Scene</div>
     <div class="row">
       <label class="mini chk"><input type="checkbox" id="showTrail" checked> Drone orbit</label>
       <label class="mini chk"><input type="checkbox" id="showMoonOrbit"> Show Moon's orbit</label>
-      <label class="mini chk"><input type="checkbox" id="showSats" checked> Other satellites</label>
-      <label class="mini chk"><input type="checkbox" id="showLag"> L1 / L2</label>
-      <label class="mini chk"><input type="checkbox" id="showHop" checked> Launches</label>
-      <label class="mini chk"><input type="checkbox" id="showFleet"> Escort drones</label>
       <label class="mini chk"><input type="checkbox" id="showBurns"> Burn flashes</label>
       <label class="mini chk"><input type="checkbox" id="phaseColors"> Orbit phase colours</label>
-      <select class="sel" id="fleetSpace" aria-label="Escort spacing"><option value="time">Escorts · by time</option><option value="dist">Escorts · by distance</option></select>
+    </div>
+    <div class="row">
+      <label class="mini chk"><input type="checkbox" id="showFleet" checked> Escort drones</label>
       <label class="mini">Escorts <span id="fleetCountV">12</span> <input type="range" id="fleetCount" min="1" max="24" step="1" value="12" style="width:96px"></label>
-      <label class="mini chk"><input type="checkbox" id="fleetTrail"> Escort trails</label>
+      <select class="sel" id="fleetSpace" aria-label="Escort spacing"><option value="time">Escorts · by time</option><option value="dist">Escorts · by distance</option></select>
+      <label class="mini chk"><input type="checkbox" id="fleetTrail" checked> Escort trails</label>
       <label class="mini">Trail ×<span id="trailLenV">1.0</span> <input type="range" id="trailLen" min="0.15" max="2" step="0.05" value="1" style="width:96px"></label>
-      <label class="mini chk"><input type="checkbox" id="sunLight"> Sunlight</label>
+    </div>
+    <div class="row">
       <div class="ctl" style="min-width:190px"><label>Animation <span class="val"><span id="animdurV">60</span> s</span></label><input type="range" id="animdur" min="3" max="120" step="1" value="60"></div>
       <button class="btn" id="play" aria-label="Pause animation">Pause</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="exhead">Advanced — rarely needed</div>
+    <div class="row">
+      <label class="mini chk"><input type="checkbox" id="roundTrip" checked> Return to LEO (round trip)</label>
+      <label class="mini chk"><input type="checkbox" id="showHop" checked> Launches</label>
+      <label class="mini chk"><input type="checkbox" id="showSats" checked> Other satellites</label>
+      <label class="mini chk"><input type="checkbox" id="showLag"> L1 / L2</label>
+      <label class="mini chk"><input type="checkbox" id="sunLight"> Sunlight</label>
     </div>
   </div>
 
@@ -214,7 +228,7 @@ import { createViewer } from './viewer-core.js';
   var TWO=2*Math.PI, HOLD_MS=1600, CAM_W=TWO/24000;   // studio-side constants (video timing)
 
   // ---- studio UI model (mirrors the core's config; serialized to the URL) ----
-  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,fleetCount:12,trailLen:1,showBurns:false,phaseColors:false,sun:true};
+  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:true,fleetDist:false,fleetTrail:true,fleetCount:12,trailLen:1,showBurns:false,phaseColors:false,sun:true};
   var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0};
   var bodyData={sat:null,moon:null,earth:null}, DIA={sat:26,moon:40,earth:56};   // studio-side (SVG export + art size)
   var VIEW=document.getElementById('view');
