@@ -1,5 +1,8 @@
 # Local-only — not hosted (brand source files, guidelines, logo png)
-assets/
+# ...except the two body-map textures moon3/viewer-core load at runtime, which MUST be deployed.
+assets/*
+!assets/earth-map.jpg
+!assets/moon-map.jpg
 
 # Superseded animation experiments — kept locally
 archive/
