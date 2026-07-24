@@ -44,7 +44,7 @@ export function createViewer(canvas, config) {
   var CAM_W=TWO/24000;
 
   // ---------- state (config-seeded) ----------
-  var P = assign({mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,showBurns:false,phaseColors:false,sun:false}, config.P);
+  var P = assign({mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,fleetCount:12,trailLen:1,showBurns:false,phaseColors:false,sun:false}, config.P);
   var S = assign({sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0}, config.S);
   var zoom = config.zoom!=null ? config.zoom : 1;
   var camYaw=0, panX=0, panY=0, camPhi=0, renderPhi=0;   // renderPhi = the phi paint() is currently drawing at → lets bodyOrDot rotate a globe with the camera
@@ -205,6 +205,13 @@ export function createViewer(canvas, config) {
       var x=X*cph-Y*sph,y=X*sph+Y*cph,z=Z,yv=y*ct-z*st,zv=y*st+z*ct;return [cx+x*SC,cy-yv*SC,zv];};
   }
   function satPlot(i){if(P.mode==='mission')return traj.sat[i];var s=traj.sat[i],p=traj.prim[i],m=P.mag;return [p[0]+m*(s[0]-p[0]),p[1]+m*(s[1]-p[1]),p[2]+m*(s[2]-p[2])];}
+  // Escort = the base OTV mission launched foff samples earlier, re-timed to rendezvous with the REAL Moon.
+  // Split the base path into its body-relative offset + primary; rotate the offset by the epoch angle (fa),
+  // then re-anchor Moon-relative arcs onto the actual Moon at THIS escort's epoch (moon[idx+foff]) so the coil
+  // sits exactly on the Moon (a flat rotation of the whole path can't — the Moon's orbit is inclined+eccentric).
+  function escortPos(idx,foff,ca,sa,total){var s=traj.sat[idx],p=traj.prim[idx],ox=s[0]-p[0],oy=s[1]-p[1],oz=s[2]-p[2],rx=ox*ca-oy*sa,ry=ox*sa+oy*ca;
+    if(p[0]||p[1]||p[2]){var m=traj.moon[(idx+foff)%total];return [m[0]+rx,m[1]+ry,m[2]+oz];}   // Moon arc → anchor on the real Moon
+    return [rx,ry,oz];}                                                                          // Earth arc → rotate about Earth (convoy fan)
 
   // ================= BODY ART =================
   function bscale(){ return bscaleVal; }
@@ -440,7 +447,7 @@ export function createViewer(canvas, config) {
       for(i=1;i<=head;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;
         al=(0.30+0.55*Math.max(0,1-(head-i)/lead))*env;c.strokeStyle='rgba('+sc(i)+','+al.toFixed(3)+')';
         c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
-    var TAIL=Math.max(40,Math.round(total*0.62)),j;
+    var TAIL=Math.min(total,Math.max(40,Math.round(total*0.62*(P.trailLen==null?1:P.trailLen)))),j;
     for(j=0;j<TAIL;j++){cur=((head-j)%total+total)%total;prev=((head-j-1)%total+total)%total;
       if(Math.abs(cur-prev)!==1)continue;
       if(occ&&(occ(pts[cur])||occ(pts[prev])))continue;
@@ -485,21 +492,22 @@ export function createViewer(canvas, config) {
       asp=pr([bp[0]+uu[0],bp[1]+uu[1],bp[2]+uu[2]]);if(occ(asp))continue;twinkleDot(c,asp[0],asp[1],MARK.depot*mk,'#e6bf5c','#e6bf5c',MARK.depot*0.7*mk*S.glow);
       if(labeled('depot'))drawLabel(c,asp[0],asp[1],'Depot',MARK.depot*mk+10,lf);}}   // depot = flat gold (no bright core); size = MARK.depot · markScale
     if(P.showFleet && P.mode==='mission'){var fd,foff,fa,ca,sa,fidx,fq,fp,rt=traj.rate||0,
-        mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=12,
+        mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=Math.max(1,Math.min(24,Math.round(P.fleetCount==null?12:P.fleetCount))),
         cum=traj.cum,Lm=(P.fleetDist&&cum)?cum[Math.min(cum.length-1,mSamp)]:0,
-        srgb=hexRGB(S.sat),TL=Math.max(40,Math.round(total*0.4)),jj,ci2,pi2,qb,pb2,pa2,al2;
+        srgb=hexRGB(S.sat),TL=Math.min(total,Math.max(40,Math.round(total*0.4*(P.trailLen==null?1:P.trailLen)))),jj,ci2,pi2,qb,pb2,pa2,al2;
       for(fd=1;fd<=NF;fd++){
         if(P.fleetDist&&cum&&Lm>0){foff=arcIndex(fd/(NF+1)*Lm,cum,mSamp);}
         else{foff=Math.round(fd/(NF+1)*mSamp);}
         fa=rt*foff;ca=Math.cos(fa);sa=Math.sin(fa);
         fidx=((head-foff)%total+total)%total;
-        if(P.fleetTrail){c.lineWidth=1*kl*S.lw;pa2=null;pi2=-9;
+        if(P.fleetTrail){c.lineWidth=1*kl*S.lw;pa2=null;pi2=-9;var pim=-1,im2,pp2;
           for(jj=0;jj<TL;jj+=2){ci2=((fidx-jj)%total+total)%total;
-            qb=satPlot(ci2);pb2=pr([qb[0]*ca-qb[1]*sa, qb[0]*sa+qb[1]*ca, qb[2]]);
-            if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5;
+            pp2=traj.prim[ci2];im2=(pp2[0]||pp2[1]||pp2[2])?1:0;   // pen-up across the Earth↔Moon regime switch (transfer end is off-Moon, coil is on-Moon)
+            pb2=pr(escortPos(ci2,foff,ca,sa,total));
+            if(pa2&&Math.abs(ci2-pi2)<=3&&im2===pim){al2=(1-jj/TL);al2=al2*al2*0.5;
               c.strokeStyle='rgba('+(trailCols?(trailCols[ci2]||srgb):srgb)+','+al2.toFixed(3)+')';c.beginPath();c.moveTo(pa2[0],pa2[1]);c.lineTo(pb2[0],pb2[1]);c.stroke();}   // escort trails share the OTV's per-phase colours when P.phaseColors is on
-            pa2=pb2;pi2=ci2;}}
-        fq=satPlot(fidx);fp=pr([fq[0]*ca-fq[1]*sa, fq[0]*sa+fq[1]*ca, fq[2]]);
+            pa2=pb2;pi2=ci2;pim=im2;}}
+        fp=pr(escortPos(fidx,foff,ca,sa,total));
         if(occ(fp))continue;bodyOrDot(c,fp[0],fp[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);}}   // escorts = same size as the main drone (MARK.drone · markScale)
     if(P.showHop){
       drawLaunch(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, AMBS[1].phase, AMBS[1].rate, 0.20, mk, lf);
