@@ -76,6 +76,8 @@
   .btn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 15px;cursor:pointer}
   .btn:hover{border-color:var(--orange);color:var(--orange)}.btn:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
   .btn[disabled]{opacity:.5;cursor:default;border-color:var(--line);color:var(--muted)}
+  .fsbtn{width:34px;height:30px;padding:0;font-size:15px;line-height:1;display:inline-flex;align-items:center;justify-content:center;background:rgba(10,12,18,.5);border:1px solid var(--line);border-radius:8px;color:var(--muted);cursor:pointer}
+  .fsbtn:hover{border-color:var(--orange);color:var(--orange)}.fsbtn:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .segbtn{font-family:var(--mono);font-size:11px;background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer}
   .segbtn+.segbtn{border-left:1px solid var(--line)}.segbtn.active{background:rgba(255,85,0,.14);color:var(--orange)}
@@ -138,12 +140,12 @@
       <label class="mini chk"><input type="checkbox" id="showHop" checked> Launches</label>
       <label class="mini chk"><input type="checkbox" id="showFleet"> Escort drones</label>
       <label class="mini chk"><input type="checkbox" id="showBurns"> Burn flashes</label>
+      <label class="mini chk"><input type="checkbox" id="phaseColors"> Orbit phase colours</label>
       <select class="sel" id="fleetSpace" aria-label="Escort spacing"><option value="time">Escorts · by time</option><option value="dist">Escorts · by distance</option></select>
       <label class="mini chk"><input type="checkbox" id="fleetTrail"> Escort trails</label>
       <label class="mini chk"><input type="checkbox" id="sunLight"> Sunlight</label>
       <div class="ctl" style="min-width:190px"><label>Animation <span class="val"><span id="animdurV">60</span> s</span></label><input type="range" id="animdur" min="3" max="120" step="1" value="60"></div>
       <button class="btn" id="play" aria-label="Pause animation">Pause</button>
-      <button class="btn" id="fs" aria-label="Fill the screen">Fullscreen</button>
     </div>
   </div>
 
@@ -185,7 +187,7 @@
 
   <main class="viewport">
     <div class="panel">
-      <div class="phead"><h2 id="sceneTitle">Low Lunar Orbit</h2><span class="frametag">drag rotate · shift-drag pan · scroll zoom · dbl-click reset</span></div>
+      <div class="phead"><h2 id="sceneTitle">Low Lunar Orbit</h2><div style="display:flex;align-items:center;gap:12px"><span class="frametag">drag rotate · shift-drag pan · scroll zoom · dbl-click reset</span><button class="fsbtn" id="fs" aria-label="Fill the screen" title="Fullscreen">⛶</button></div></div>
       <canvas class="stage" id="view" width="1080" height="1000"></canvas>
       <div class="pfoot" id="foot"></div>
     </div>
@@ -210,7 +212,7 @@ import { createViewer } from './viewer-core.js';
   var TWO=2*Math.PI, HOLD_MS=1600, CAM_W=TWO/24000;   // studio-side constants (video timing)
 
   // ---- studio UI model (mirrors the core's config; serialized to the URL) ----
-  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,showBurns:false,sun:true};
+  var P={mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,showBurns:false,phaseColors:false,sun:true};
   var S={sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0};
   var bodyData={sat:null,moon:null,earth:null}, DIA={sat:26,moon:40,earth:56};   // studio-side (SVG export + art size)
   var VIEW=document.getElementById('view');
@@ -257,7 +259,7 @@ import { createViewer } from './viewer-core.js';
       if(document.fullscreenElement){ document.exitFullscreen(); }
       else if(VIEW.requestFullscreen){ VIEW.requestFullscreen().catch(function(){}); } });
     document.addEventListener('fullscreenchange',function(){
-      fsBtn.textContent=document.fullscreenElement?'Exit fullscreen':'Fullscreen'; fit(); });
+      fsBtn.title=document.fullscreenElement?'Exit fullscreen':'Fullscreen'; fit(); });   // icon stays; tooltip toggles
   }
 
   // ---- interactive camera: drag = rotate (yaw + tilt), scroll = zoom, dbl-click = reset ----
@@ -265,7 +267,7 @@ import { createViewer } from './viewer-core.js';
   // ---- orbit controls ----
   var altEl=document.getElementById('alt'),eEl=document.getElementById('e'),incEl=document.getElementById('inc'),
       magEl=document.getElementById('mag'),spanEl=document.getElementById('span'),presetEl=document.getElementById('preset'),
-      showMoonEl=document.getElementById('showMoonOrbit'),showSatsEl=document.getElementById('showSats'),showLagEl=document.getElementById('showLag'),showTrailEl=document.getElementById('showTrail'),showHopEl=document.getElementById('showHop'),showFleetEl=document.getElementById('showFleet'),fleetSpaceEl=document.getElementById('fleetSpace'),fleetTrailEl=document.getElementById('fleetTrail'),showBurnsEl=document.getElementById('showBurns'),sunEl=document.getElementById('sunLight'),raiseEl=document.getElementById('raise'),
+      showMoonEl=document.getElementById('showMoonOrbit'),showSatsEl=document.getElementById('showSats'),showLagEl=document.getElementById('showLag'),showTrailEl=document.getElementById('showTrail'),showHopEl=document.getElementById('showHop'),showFleetEl=document.getElementById('showFleet'),fleetSpaceEl=document.getElementById('fleetSpace'),fleetTrailEl=document.getElementById('fleetTrail'),showBurnsEl=document.getElementById('showBurns'),phaseColorsEl=document.getElementById('phaseColors'),sunEl=document.getElementById('sunLight'),raiseEl=document.getElementById('raise'),
       coastEl=document.getElementById('coast'),pmulEl=document.getElementById('pmul'),animdurEl=document.getElementById('animdur'),
       roundTripEl=document.getElementById('roundTrip'),primBtns=[].slice.call(document.querySelectorAll('.segbtn'));
   function orbLabels(){document.getElementById('altV').textContent=Math.round(P.alt);
@@ -281,7 +283,7 @@ import { createViewer } from './viewer-core.js';
     P.mag=parseInt(magEl.value,10);P.span=parseFloat(spanEl.value);P.raise=parseInt(raiseEl.value,10);P.coast=parseFloat(coastEl.value);P.periodMul=parseFloat(pmulEl.value);
     P.roundTrip=roundTripEl.checked;P.showMoon=showMoonEl.checked;orbLabels();compute();refreshStatic();updateHash();}
   function writeOrbit(){altEl.value=P.alt;eEl.value=P.e;incEl.value=P.inc;magEl.value=P.mag;spanEl.value=P.span;
-    raiseEl.value=P.raise;coastEl.value=P.coast;pmulEl.value=P.periodMul;animdurEl.value=P.animDur;roundTripEl.checked=P.roundTrip;showMoonEl.checked=P.showMoon;showSatsEl.checked=P.showSats;showLagEl.checked=P.showLag;showTrailEl.checked=P.showTrail;showHopEl.checked=P.showHop;showFleetEl.checked=P.showFleet;fleetSpaceEl.value=P.fleetDist?'dist':'time';fleetTrailEl.checked=P.fleetTrail;showBurnsEl.checked=P.showBurns;sunEl.checked=P.sun;setPrimaryUI();updateModeUI();orbLabels();}
+    raiseEl.value=P.raise;coastEl.value=P.coast;pmulEl.value=P.periodMul;animdurEl.value=P.animDur;roundTripEl.checked=P.roundTrip;showMoonEl.checked=P.showMoon;showSatsEl.checked=P.showSats;showLagEl.checked=P.showLag;showTrailEl.checked=P.showTrail;showHopEl.checked=P.showHop;showFleetEl.checked=P.showFleet;fleetSpaceEl.value=P.fleetDist?'dist':'time';fleetTrailEl.checked=P.fleetTrail;showBurnsEl.checked=P.showBurns;phaseColorsEl.checked=P.phaseColors;sunEl.checked=P.sun;setPrimaryUI();updateModeUI();orbLabels();}
   animdurEl.addEventListener('input',function(){P.animDur=parseFloat(animdurEl.value);document.getElementById('animdurV').textContent=Math.round(P.animDur);updateHash();});
   [altEl,eEl,incEl,magEl,spanEl,raiseEl,coastEl,pmulEl].forEach(function(el){el.addEventListener('input',readOrbit);});
   showMoonEl.addEventListener('change',readOrbit);
@@ -291,6 +293,7 @@ import { createViewer } from './viewer-core.js';
   showHopEl.addEventListener('change',function(){P.showHop=showHopEl.checked;refreshStatic();updateHash();});
   showFleetEl.addEventListener('change',function(){P.showFleet=showFleetEl.checked;refreshStatic();updateHash();});
   showBurnsEl.addEventListener('change',function(){P.showBurns=showBurnsEl.checked;refreshStatic();updateHash();});
+  phaseColorsEl.addEventListener('change',function(){P.phaseColors=phaseColorsEl.checked;refreshStatic();updateHash();});
   fleetSpaceEl.addEventListener('change',function(){P.fleetDist=fleetSpaceEl.value==='dist';refreshStatic();updateHash();});
   fleetTrailEl.addEventListener('change',function(){P.fleetTrail=fleetTrailEl.checked;refreshStatic();updateHash();});
   sunEl.addEventListener('change',function(){P.sun=sunEl.checked;refreshStatic();updateHash();});
@@ -389,7 +392,7 @@ import { createViewer } from './viewer-core.js';
   function writeStyle(){styleCtl.forEach(function(m){var el=document.getElementById(m[0]);if(el)el.value=S[m[1]];});syncStyleLabels();}
   function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))));}
   function dec(s){return JSON.parse(decodeURIComponent(escape(atob(s))));}
-  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,coast:P.coast,periodMul:P.periodMul,animDur:P.animDur,roundTrip:P.roundTrip,showMoon:P.showMoon,showSats:P.showSats,showLag:P.showLag,showTrail:P.showTrail,showHop:P.showHop,showFleet:P.showFleet,fleetDist:P.fleetDist,fleetTrail:P.fleetTrail,showBurns:P.showBurns,sun:P.sun},preset:presetEl.value};}
+  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,coast:P.coast,periodMul:P.periodMul,animDur:P.animDur,roundTrip:P.roundTrip,showMoon:P.showMoon,showSats:P.showSats,showLag:P.showLag,showTrail:P.showTrail,showHop:P.showHop,showFleet:P.showFleet,fleetDist:P.fleetDist,fleetTrail:P.fleetTrail,showBurns:P.showBurns,phaseColors:P.phaseColors,sun:P.sun},preset:presetEl.value};}
   function updateHash(){try{history.replaceState(null,'','#s='+enc(getState()));}catch(e){}}
   function loadFromHash(){var m=(location.hash||'').match(/s=([^&]+)/);if(!m)return;
     try{var st=dec(m[1]);if(st.S)for(var a in st.S){if(S.hasOwnProperty(a))S[a]=st.S[a];}

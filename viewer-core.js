@@ -44,7 +44,7 @@ export function createViewer(canvas, config) {
   var CAM_W=TWO/24000;
 
   // ---------- state (config-seeded) ----------
-  var P = assign({mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,showBurns:false,sun:false}, config.P);
+  var P = assign({mode:'orbit',primary:'moon',alt:100,e:0,inc:90,mag:22,span:8,raise:3,coast:1,periodMul:12,animDur:60,roundTrip:true,lloAlt:100,lloInc:90,showMoon:false,showSats:true,showLag:false,showTrail:true,showHop:true,showFleet:false,fleetDist:false,fleetTrail:false,showBurns:false,phaseColors:false,sun:false}, config.P);
   var S = assign({sat:'#EAF1FF',moon:'#B9C2D0',earth:'#5C8CFF',ref:'#454b58',bg:'#000000',lw:1,glow:1,refop:0.55,tilt:49,drift:0}, config.S);
   var zoom = config.zoom!=null ? config.zoom : 1;
   var camYaw=0, panX=0, panY=0, camPhi=0, renderPhi=0;   // renderPhi = the phi paint() is currently drawing at → lets bodyOrDot rotate a globe with the camera
@@ -253,6 +253,10 @@ export function createViewer(canvas, config) {
   function SGBUF(d){var b=sgbuf[d];if(!b){var cv=document.createElement('canvas');cv.width=d;cv.height=d;b={cv:cv,ctx:cv.getContext('2d')};sgbuf[d]=b;}return b;}
   function earthTex(){if(texCache.ek!==S.earth){var t=buildEarthTex(S.earth);texCache.earth={day:texData(t.cv),lights:texData(t.lights)};texCache.ek=S.earth;}return texCache.earth;}
   function moonTex(){if(texCache.mk!==S.moon){var t=buildMoonTex(S.moon);texCache.moon={day:texData(t.cv),lights:null};texCache.mk=S.moon;}return texCache.moon;}
+  // Lambertian day-side gradient with a soft terminator: brightness follows cos(incidence) across the lit
+  // hemisphere (bright at sub-solar, fading toward the terminator) rather than flat-lit day + a narrow edge —
+  // the physically-truer look, matching how GMAT renders the Moon. lam = surface-normal · sun, in [-1,1].
+  function litFrac(lam){var w=0.16, lit=lam<=-w?0:lam>=w?1:0.5+0.5*lam/w, cs=lam<0?0:lam; return lit*(0.30+0.70*Math.pow(cs,0.72));}
   function shadedGlobe(c,x,y,R,dayD,lightsD,rot,sCam,ambient,flat){
     var d=Math.max(4,Math.ceil(2*R)),buf=SGBUF(d),bx=buf.ctx,img=bx.createImageData(d,d),data=img.data;
     var tw=dayD.width,th=dayD.height,td=dayD.data,ld=lightsD?lightsD.data:null;
@@ -266,7 +270,7 @@ export function createViewer(canvas, config) {
         var tx=(u*tw)|0,ty=(v*th)|0;if(ty<0)ty=0;if(ty>=th)ty=th-1;if(tx>=tw)tx=tw-1;var to=(ty*tw+tx)*4;
         var br,tf;
         if(flat){br=1-0.32*r2;}
-        else{var lam=nx*sr+(-nyd)*su+nz*sv;tf=lam+0.14;tf=tf<0?0:tf>0.28?1:tf/0.28;br=ambient+(1-ambient)*tf;}
+        else{var lam=nx*sr+(-nyd)*su+nz*sv;tf=litFrac(lam);br=ambient+(1-ambient)*tf;}
         data[o]=td[to]*br;data[o+1]=td[to+1]*br;data[o+2]=td[to+2]*br;data[o+3]=255;
         if(ld&&!flat){var la=ld[to+3];if(la>0){var ad=(la/255)*(0.45+0.55*(1-tf));
           data[o]=cl255(data[o]+ld[to]*ad);data[o+1]=cl255(data[o+1]+ld[to+1]*ad);data[o+2]=cl255(data[o+2]+ld[to+2]*ad);}}
@@ -287,7 +291,7 @@ export function createViewer(canvas, config) {
         var tx=((px/d)*tw)|0;if(tx>=tw)tx=tw-1;var to=(ty*tw+tx)*4;
         var br;
         if(flat){br=1-0.32*r2;}
-        else{var nz=Math.sqrt(1-r2),lam=nx*sr+(-nyd)*su+nz*sv,tf=lam+0.14;tf=tf<0?0:tf>0.28?1:tf/0.28;br=ambient+(1-ambient)*tf;}
+        else{var nz=Math.sqrt(1-r2),lam=nx*sr+(-nyd)*su+nz*sv,tf=litFrac(lam);br=ambient+(1-ambient)*tf;}
         data[o]=td[to]*br;data[o+1]=td[to+1]*br;data[o+2]=td[to+2]*br;data[o+3]=255;
       }}
     bx.putImageData(img,0,0);
@@ -426,18 +430,22 @@ export function createViewer(canvas, config) {
     c.globalAlpha=1;}
   var AMBS=[{body:0,phase:1.1,rate:0.00060},{body:1,phase:2.4,rate:0.00095}];
   function arcIndex(L,cum,hi){var lo=0,h=hi,m;while(lo<h){m=(lo+h)>>1;if(cum[m]<L)lo=m+1;else h=m;}return lo;}
-  function trailPaint(c,pts,head,total,rgb,k,full,occ,env,grow){env=env==null?1:env;c.lineWidth=0.85*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
-    if(full){for(i=1;i<=total;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;c.strokeStyle='rgba('+rgb+',0.5)';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
+  // Toggleable orbit-phase colours (P.phaseColors). Brand palette — one colour per mission regime:
+  // LEO (Earth parking/raise/staging/return) · TLI+TEI (the transfer arcs) · LLO (lunar coil).
+  var PHASE_RGB={LEO:'213,255,90', TLI:'255,85,0', LLO:'92,136,162'};   // lime · Blink orange · steel blue (#5C88A2)
+  function trailPaint(c,pts,head,total,rgb,k,full,occ,env,grow,cols){env=env==null?1:env;c.lineWidth=0.85*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
+    var sc=cols?function(idx){return cols[idx]||rgb;}:function(){return rgb;};   // per-sample phase colour, else the single trail colour
+    if(full){for(i=1;i<=total;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;c.strokeStyle='rgba('+sc(i)+',0.5)';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
     if(grow){var lead=Math.max(1,total*0.16);
       for(i=1;i<=head;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;
-        al=(0.30+0.55*Math.max(0,1-(head-i)/lead))*env;c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';
+        al=(0.30+0.55*Math.max(0,1-(head-i)/lead))*env;c.strokeStyle='rgba('+sc(i)+','+al.toFixed(3)+')';
         c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
     var TAIL=Math.max(40,Math.round(total*0.62)),j;
     for(j=0;j<TAIL;j++){cur=((head-j)%total+total)%total;prev=((head-j-1)%total+total)%total;
       if(Math.abs(cur-prev)!==1)continue;
       if(occ&&(occ(pts[cur])||occ(pts[prev])))continue;
       al=(1-j/TAIL);al=al*al*0.92*env;if(al<0.012)continue;
-      c.strokeStyle='rgba('+rgb+','+al.toFixed(3)+')';c.beginPath();c.moveTo(pts[prev][0],pts[prev][1]);c.lineTo(pts[cur][0],pts[cur][1]);c.stroke();}
+      c.strokeStyle='rgba('+sc(cur)+','+al.toFixed(3)+')';c.beginPath();c.moveTo(pts[prev][0],pts[prev][1]);c.lineTo(pts[cur][0],pts[cur][1]);c.stroke();}
     c.save();c.globalCompositeOperation='lighter';var HOT=Math.min(TAIL,14),hw;
     for(j=0;j<HOT;j++){cur=((head-j)%total+total)%total;prev=((head-j-1)%total+total)%total;
       if(Math.abs(cur-prev)!==1)continue;if(occ&&(occ(pts[cur])||occ(pts[prev])))continue;
@@ -466,7 +474,8 @@ export function createViewer(canvas, config) {
     bodyOrDot(c,eP[0],eP[1],'earth',eR,S.earth,16*k*S.glow,k,'#b7ccff',sCam);
     if(labeled('earth'))drawLabel(c,eP[0],eP[1],'Earth',eR+10,lf);
     var spts=[];for(i=0;i<=total;i++)spts.push(pr(satPlot(i)));
-    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),kl,o.full,occ,o.env,o.grow);   // kl → constant trail thickness
+    var trailCols=(P.phaseColors&&P.mode==='mission'&&traj.tel)?traj.tel.map(function(t){return (t&&PHASE_RGB[t.ph])||hexRGB(S.sat);}):null;   // per-phase brand colours when P.phaseColors on (mission only)
+    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),kl,o.full,occ,o.env,o.grow,trailCols);   // kl → constant trail thickness
     bodyOrDot(c,mP[0],mP[1],'moon',mR,S.moon,8*k*S.glow,k,'#eef2f8',sCam);
     if(labeled('moon'))drawLabel(c,mP[0],mP[1],'Moon',mR+10,lf);
     if(P.showSats){var j,A,bp,rad,inc,ang,uu,asp;for(j=0;j<AMBS.length;j++){A=AMBS[j];
@@ -488,7 +497,7 @@ export function createViewer(canvas, config) {
           for(jj=0;jj<TL;jj+=2){ci2=((fidx-jj)%total+total)%total;
             qb=satPlot(ci2);pb2=pr([qb[0]*ca-qb[1]*sa, qb[0]*sa+qb[1]*ca, qb[2]]);
             if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5;
-              c.strokeStyle='rgba('+srgb+','+al2.toFixed(3)+')';c.beginPath();c.moveTo(pa2[0],pa2[1]);c.lineTo(pb2[0],pb2[1]);c.stroke();}
+              c.strokeStyle='rgba('+(trailCols?(trailCols[ci2]||srgb):srgb)+','+al2.toFixed(3)+')';c.beginPath();c.moveTo(pa2[0],pa2[1]);c.lineTo(pb2[0],pb2[1]);c.stroke();}   // escort trails share the OTV's per-phase colours when P.phaseColors is on
             pa2=pb2;pi2=ci2;}}
         fq=satPlot(fidx);fp=pr([fq[0]*ca-fq[1]*sa, fq[0]*sa+fq[1]*ca, fq[2]]);
         if(occ(fp))continue;bodyOrDot(c,fp[0],fp[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);}}   // escorts = same size as the main drone (MARK.drone · markScale)

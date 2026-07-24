@@ -48,7 +48,8 @@
         alt: 420, e: 0, inc: 20, mag: 8, span: 8,
         raise: 3, coast: 1, periodMul: 34,
         animDur: 60, roundTrip: true,
-        sun: (q.get('sun') === '1')   // ?sun=1 → directional sunlight: bodies show a lit phase + terminator
+        sun: (q.get('sun') === '1'),   // ?sun=1
+        phaseColors: (q.get('phase') === '1')   // ?phase=1 → brand-coloured orbit legs
       }
       // S: { earth:'#5C8CFF', sat:'#EAF1FF', ... }  // color/style overrides go here
     });
