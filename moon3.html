@@ -152,6 +152,11 @@
       <div class="ctl" style="min-width:190px"><label>Animation <span class="val"><span id="animdurV">60</span> s</span></label><input type="range" id="animdur" min="3" max="120" step="1" value="60"></div>
       <button class="btn" id="play" aria-label="Pause animation">Pause</button>
     </div>
+    <div class="row">
+      <div class="ctl" style="min-width:280px"><label>Scrub <span class="val" id="scrubV">live</span></label>
+        <input type="range" id="scrub" min="0" max="1000" step="1" value="1000" aria-label="Scrub through the mission"></div>
+      <button class="btn" id="scrubLive" aria-label="Resume live animation">Resume</button>
+    </div>
   </div>
 
   <div class="card">
@@ -248,15 +253,27 @@ import { createViewer } from './viewer-core.js';
     viewer.resize(w,h); }
 
   // ---- telemetry bridge (embed HUD): forwarded from the viewer's onTelemetry ----
-  function emitTel(p){ try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'p78:telemetry',data:p},'*');}catch(e){} if(onTelCb){try{onTelCb(p);}catch(e){}} }
+  function emitTel(p){ try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'p78:telemetry',data:p},'*');}catch(e){} if(onTelCb){try{onTelCb(p);}catch(e){}}
+    if(p&&scrubEl&&viewer&&viewer.isPlaying()){ scrubEl.value=Math.round(p.progress*1000); setTxt('scrubV','live · '+p.phase); } }   // slider tracks the loop while playing
   try{window.addEventListener('message',function(ev){if(ev&&ev.data&&ev.data.type==='p78:getState'){
     var p=viewer?viewer.getState().telemetry:null;try{(ev.source||window.parent).postMessage({type:'p78:telemetry',data:p},'*');}catch(e){}}});
-    window.p78={getTelemetry:function(){return viewer?viewer.getState().telemetry:null;},onTelemetry:function(cb){onTelCb=cb;}};
+    window.p78={getTelemetry:function(){return viewer?viewer.getState().telemetry:null;},onTelemetry:function(cb){onTelCb=cb;},
+      seek:function(t,o){return viewer?viewer.seek(t,o):null;},play:function(){if(viewer)viewer.play();},   // console / embed scrubbing
+      pause:function(){if(viewer)viewer.pause();},lastHead:function(){return viewer?viewer.lastHead():0;}};
   }catch(e){}
 
   var playEl=document.getElementById('play');
-  playEl.addEventListener('click',function(){ if(!viewer)return; if(viewer.isPlaying())viewer.pause(); else viewer.play();
-    var pl=viewer.isPlaying(); playEl.textContent=pl?'Pause':'Play'; playEl.setAttribute('aria-label',(pl?'Pause':'Play')+' animation'); });
+  var scrubEl=document.getElementById('scrub'), scrubLiveEl=document.getElementById('scrubLive');
+  function syncPlayBtn(){ var pl=viewer&&viewer.isPlaying();
+    playEl.textContent=pl?'Pause':'Play'; playEl.setAttribute('aria-label',(pl?'Pause':'Play')+' animation'); }
+  playEl.addEventListener('click',function(){ if(!viewer)return; if(viewer.isPlaying())viewer.pause(); else viewer.play(); syncPlayBtn(); });
+  // Scrub = viewer.seek() — the same call the site drives from scroll. seek() stops the loop, so the
+  // play button flips to Play; "Resume" hands control back. Scrub to a frame, then export a still from it.
+  if(scrubEl) scrubEl.addEventListener('input',function(){ if(!viewer)return;
+    var t=parseInt(scrubEl.value,10)/1000, head=viewer.seek(t), tel=viewer.getState().telemetry;
+    setTxt('scrubV',(tel?tel.phase+' · ':'')+Math.round(t*100)+'% · #'+head); syncPlayBtn(); });
+  if(scrubLiveEl) scrubLiveEl.addEventListener('click',function(){ if(!viewer)return;
+    viewer.play(); setTxt('scrubV','live'); syncPlayBtn(); });
   window.addEventListener('resize',fit);
 
   // ---- fullscreen: canvas fills the screen, movie-style (replaces the moon4/moon5 wrapper pages) ----

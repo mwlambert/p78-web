@@ -12,6 +12,13 @@
  *    v.resize(w, h);      // call from a ResizeObserver, or pass {width,height} in config
  *    v.pause(); v.play(); v.destroy();
  *
+ *  Scroll-scrubbing / host-driven playback:
+ *    v.seek(0.42);                  // 0..1 through the mission loop; repaints the live canvas
+ *    v.seek(3200, {index:true});    // or an absolute sample index (0..v.lastHead())
+ *  seek() stops the rAF loop (it would otherwise overwrite the frame) and fires onTelemetry for
+ *  the sought frame, so a HUD tracks the scrub. v.play() hands control back to the loop.
+ *  Drive it from scroll:  v.seek(scrolledFractionOfSection)
+ *
  *  Live toggles for host UI buttons — all cheap, none recompute the trajectory:
  *    v.setConfig({ labels:true });                    // body labels (Earth / Moon / OTV / Tanker / Depot)
  *    v.setConfig({ orbitLabels:true });               // orbit phase tags (LEO / TLI / LLO / TEI / Moon's orbit)
@@ -733,6 +740,21 @@ export function createViewer(canvas, config) {
       if(!playing) staticFull(); },
     play: play,
     pause: pause,
+    // Drive the animation to an arbitrary point in the mission and repaint the LIVE canvas —
+    // the hook for scroll-linked scrubbing or a host progress slider.
+    //   v.seek(0.42)                 → 42% through the loop (matches telemetry's `progress`)
+    //   v.seek(3200, {index:true})   → absolute sample index (0..lastHead())
+    // Stops playback first: a running rAF frame would overwrite the seek on the very next tick.
+    // Fires onTelemetry for the sought frame so a host HUD stays in sync while scrubbing.
+    // Returns the resolved head index. Call play() to hand control back to the loop.
+    seek: function(t, opts){
+      var total=lastHead(),
+          head=(opts&&opts.index)?Math.round(t||0):Math.round((t||0)*total);
+      head=head<0?0:head>total?total:head;
+      if(playing){ playing=false; caf(rafId); rafId=null; }   // inline (not pause()) — pause() repaints lastHead first
+      drawFrame(head, camYaw, true);                          // drawFrame sets telHead
+      fireTelemetry(head);
+      return head; },
     resize: resize,                                   // resize(cssW, cssH[, dpr])
     // Paint one static full frame (last head, current camera) into an arbitrary 2D context — studio PNG.
     snapshot: function(targetCtx, w, h, opts){ renderFrameFn(targetCtx, w, h, assign({full:true}, opts||{})); },
