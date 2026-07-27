@@ -55,6 +55,7 @@ export function createViewer(canvas, config) {
   var labelScale = config.labelScale!=null ? config.labelScale : 1;     // host multiplier for body-label font size (default 1). Labels also track markScale gently (√) so they shrink with the dots on a backdrop.
   var labels = !!config.labels;                                         // draw a small label next to each body (default false)
   var labelSet = config.labelSet || null;                               // optional pick: ['earth','moon','depot','drone']; null = all
+  var orbitLabels = !!config.orbitLabels;                               // draw phase tags on the arcs (LEO / TLI / LLO / TEI / Moon's orbit), coloured per phase
   var interactive = config.interactive !== false;                       // default true; site backdrop passes false
   var wheelModifierOnly = !!config.wheelModifierOnly;                    // for interactive embeds inside a scrolling page
   var onCamera = typeof config.onCamera==='function' ? config.onCamera : null;
@@ -178,26 +179,44 @@ export function createViewer(canvas, config) {
     var cum=[0],ci,_dx,_dy,_dz;
     for(ci=1;ci<all.length;ci++){_dx=all[ci][0]-all[ci-1][0];_dy=all[ci][1]-all[ci-1][1];_dz=all[ci][2]-all[ci-1][2];cum[ci]=cum[ci-1]+Math.sqrt(_dx*_dx+_dy*_dy+_dz*_dz);}
     traj.cum=cum;
-    traj.escW=buildEscW(prim);   // escort Earth↔Moon anchor blend (see escortPos)
+    traj.escW=buildEscW(tel,prim);   // escort Earth↔Moon anchor blend (see escortPos)
+    traj.orbitTags=buildOrbitTags(tel,moon);   // phase tags anchored on the arcs (see orbitLabels)
   }
-  // Per-sample "moon-ness" weight for the escort transform: 1 on Moon-anchored coil samples,
-  // and on each Earth-anchored transfer leg it ramps LINEARLY to 1 at the Moon-adjacent end (LOI / TEI)
-  // and 0 at the Earth end. This lets escortPos hand the transfer smoothly from the flat-rotation frame
-  // (pivoting about the shared Earth launch) onto the TRUE Moon foff samples ahead, so the coil and the
-  // transfer join with no seam — the old hard 0↔1 flip put a ~40,000 km jump at each regime switch.
-  function buildEscW(prim){
+  // One label per mission orbit, anchored mid-arc: scan the per-sample phase (tel[i].ph) into contiguous runs,
+  // keep the LONGEST run of each kind (so parking/staging/return-LEO collapse to one 'LEO'), and split the two
+  // TLI runs into outbound 'TLI' and return 'TEI' via the telemetry label. Plus a 'Moon's orbit' tag out at the
+  // Moon's apogee (the least-crowded point on the big ellipse). Anchors are sample indices → projected each frame.
+  function buildOrbitTags(tel,moon){
+    if(!tel||!tel.length) return [];
+    var runs=[],i,cur=null,NAME={LEO:'LEO',TLI:'TLI',LLO:'LLO',TEI:'TEI'},PH={LEO:'LEO',TLI:'TLI',LLO:'LLO',TEI:'TLI'};
+    for(i=0;i<tel.length;i++){var t=tel[i],ph=t&&t.ph,key=ph==='TLI'?(/Earth/.test(t.label||'')?'TEI':'TLI'):ph;
+      if(!cur||cur.key!==key){cur={key:key,a:i,b:i};runs.push(cur);}else cur.b=i;}
+    var best={};runs.forEach(function(r){var len=r.b-r.a;if(NAME[r.key]&&(!best[r.key]||len>best[r.key].len))best[r.key]={a:r.a,b:r.b,len:len};});
+    var tags=[];Object.keys(best).forEach(function(key){var r=best[key];tags.push({i:(r.a+r.b)>>1,text:NAME[key],ph:PH[key],body:'sat'});});
+    if(moon&&moon.length){var mi=0,md=-1;for(i=0;i<moon.length;i+=8){var m=moon[i],d=m[0]*m[0]+m[1]*m[1]+m[2]*m[2];if(d>md){md=d;mi=i;}}
+      tags.push({i:mi,text:"Moon's orbit",ph:'MOON',body:'moon'});}
+    return tags;
+  }
+  // Per-sample "moon-ness" weight for the escort transform. 1 on the Moon-anchored coil (prim≠0). 0 everywhere
+  // Earth-anchored EXCEPT the trans-lunar / trans-Earth transfer arcs (ph==='TLI'), where it ramps LINEARLY to 1 at
+  // the coil-adjacent end (LOI / TEI) and 0 at the Earth end. That confines the Moon-targeting correction to the
+  // actual transfer: escortPos hands the transfer smoothly from the flat-rotation frame (pivoting about the shared
+  // Earth launch) onto the TRUE Moon foff samples ahead, closing the ~40,000 km coil seam — while LEO/staging stay
+  // pure R_fa(s), so all escorts' circular LEO rings still map onto each other and overlap (w must NOT touch LEO).
+  function buildEscW(tel,prim){
     var n=prim.length,mn=new Array(n),w=new Array(n),i,p;
     for(i=0;i<n;i++){p=prim[i];mn[i]=!!(p[0]||p[1]||p[2]);}
     i=0;
     while(i<n){
-      if(mn[i]){w[i]=1;i++;continue;}
-      var a=i;while(i<n&&!mn[i])i++;var b=i-1,len=(b-a)||1,   // maximal Earth run [a..b]
-          mL=a>0&&mn[a-1],mR=b<n-1&&mn[b+1],k;                // Moon adjacent on left / right?
+      if(mn[i]){w[i]=1;i++;continue;}                                   // coil → full Moon anchor
+      if(!(tel[i]&&tel[i].ph==='TLI')){w[i]=0;i++;continue;}            // LEO / parking / staging → stay put
+      var a=i;while(i<n&&!mn[i]&&tel[i]&&tel[i].ph==='TLI')i++;var b=i-1,len=(b-a)||1,   // transfer run [a..b]
+          mL=a>0&&mn[a-1],mR=b<n-1&&mn[b+1],k;                          // coil adjacent on left (TEI) / right (TLI)?
       for(k=a;k<=b;k++){
-        w[k]= (mR&&!mL)? (k-a)/len
-            : (mL&&!mR)? (b-k)/len
+        w[k]= (mR&&!mL)? (k-a)/len                                      // outbound TLI: 0 at staging → 1 at LOI
+            : (mL&&!mR)? (b-k)/len                                      // return TEI:   1 at coil exit → 0 at LEO
             : (mL&&mR) ? 1-Math.min(k-a,b-k)/(len/2)
-            : 0;
+            : 0;                                                        // transfer touching no coil → no correction
       }
     }
     return w;
@@ -493,12 +512,28 @@ export function createViewer(canvas, config) {
 
   // ================= PAINT =================
   function labeled(key){ return labels && (!labelSet || labelSet.indexOf(key)>=0); }
+  // Per-frame label placement registry: bodies and orbit tags often crowd the same few pixels (Earth+LEO+Tanker,
+  // Moon+LLO+OTV+Depot). Claim a box per label and slide it vertically to the nearest free slot so none overlap.
+  var labelBoxes=[];
+  function labelSlot(x,y,w,h){
+    var step=h+3,tries=[0,-1,1,-2,2,-3,3,-4,4,-5,5],t,i,ny,hit;
+    for(t=0;t<tries.length;t++){ ny=y+tries[t]*step; hit=false;
+      for(i=0;i<labelBoxes.length;i++){var b=labelBoxes[i];
+        if(x<b.x+b.w && x+w>b.x && ny-h/2<b.y+b.h/2 && ny+h/2>b.y-b.h/2){hit=true;break;} }
+      if(!hit){ labelBoxes.push({x:x,y:ny,w:w,h:h}); return ny; } }
+    return y; }
   function drawLabel(c,x,y,text,off,lf){                                 // small mono label offset off the body; off<0 → placed to the left
     c.save();c.font=lf+'px ui-monospace, SFMono-Regular, Menlo, monospace';c.textAlign=off<0?'right':'left';c.textBaseline='middle';
+    var tw=c.measureText(text).width, tx=x+off, ty=labelSlot(off<0?tx-tw:tx, y, tw, lf);
     c.shadowColor='rgba(0,0,0,0.7)';c.shadowBlur=3;                     // subtle backing so text stays legible over lines/stars
-    c.fillStyle='rgba(220,228,242,0.92)';c.fillText(text, x+off, y);c.restore(); }
+    c.fillStyle='rgba(220,228,242,0.92)';c.fillText(text, tx, ty);c.restore(); }
+  // Phase tag on an arc: pushed radially OUT from its home body (dx,dy = anchor − body) so it clears the line, tinted the phase colour.
+  function drawOrbitLabel(c,x,y,text,dx,dy,lf,rgb){var L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,px=14;
+    c.save();c.font=lf+'px ui-monospace, SFMono-Regular, Menlo, monospace';c.textAlign=ux<0?'right':'left';c.textBaseline='middle';
+    var tw=c.measureText(text).width, tx=x+ux*px, ty=labelSlot(ux<0?tx-tw:tx, y+uy*px, tw, lf);
+    c.shadowColor='rgba(0,0,0,0.82)';c.shadowBlur=4;c.fillStyle='rgba('+rgb+',0.96)';c.fillText(text, tx, ty);c.restore(); }
   function paint(c,W,H,head,phi,o){
-    o=o||{};renderPhi=phi;var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl*Math.sqrt(markScale)*labelScale))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);bgDither(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
+    o=o||{};renderPhi=phi;labelBoxes.length=0;var k=skf(W,H)*zoom,kl=skf(W,H),mk=kl*markScale,lf=Math.max(9,Math.min(15,Math.round(11*kl*Math.sqrt(markScale)*labelScale))),total=lastHead();if(!o.transparent){fillBg(c,W,H);bgDepth(c,W,H);bgDither(c,W,H);drawStars(c,W,H,phi);}   // k = bodies (·zoom); kl = strokes (constant); mk = dot markers (constant · markScale); lf = label font px
     var pr=projector(W,H,phi),sCam=sunCam(phi),i,e;
     if(P.showMoon){c.strokeStyle='rgba('+hexRGB(S.ref)+','+S.refop+')';c.lineWidth=1*kl*S.lw;c.beginPath();
       for(i=0;i<=total;i++){e=pr(traj.moon[i]);if(i===0)c.moveTo(e[0],e[1]);else c.lineTo(e[0],e[1]);}c.stroke();}
@@ -565,6 +600,13 @@ export function createViewer(canvas, config) {
     c.fillStyle=hg;c.beginPath();c.arc(sh[0],sh[1],db,0,7);c.fill();c.globalCompositeOperation='source-over';
     bodyOrDot(c,sh[0],sh[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);c.restore();   // drone ship size = MARK.drone · markScale
     if(labeled('otv'))drawLabel(c,sh[0],sh[1],'OTV',MARK.drone*mk+10,lf);   // OTV = the orbital transfer vehicle
+    if(orbitLabels && P.mode==='mission' && traj.orbitTags){                 // phase tags on the arcs, each pushed out from its home body
+      var OT=traj.orbitTags,oi,g,ap,home,col;
+      for(oi=0;oi<OT.length;oi++){g=OT[oi];
+        if(g.ph==='MOON'){ if(!P.showMoon)continue; ap=pr(traj.moon[g.i]); home=eP; col=hexRGB(S.ref); }
+        else{ ap=pr(satPlot(g.i)); home=(g.ph==='LLO')?mP:eP; col=PHASE_RGB[g.ph]||hexRGB(S.sat); }
+        if(occ(ap))continue;
+        drawOrbitLabel(c,ap[0],ap[1],g.text,ap[0]-home[0],ap[1]-home[1],lf,col);}}
   }
 
   // ================= SIZING / LOOP =================
@@ -678,6 +720,7 @@ export function createViewer(canvas, config) {
       if(next.labelScale!=null) labelScale=next.labelScale;
       if(next.labels!=null) labels=!!next.labels;
       if(next.labelSet!==undefined) labelSet=next.labelSet||null;
+      if(next.orbitLabels!=null) orbitLabels=!!next.orbitLabels;
       if(next.recompute) compute();
       if(!playing) staticFull(); },
     play: play,
