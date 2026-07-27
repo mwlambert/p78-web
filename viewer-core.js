@@ -178,6 +178,29 @@ export function createViewer(canvas, config) {
     var cum=[0],ci,_dx,_dy,_dz;
     for(ci=1;ci<all.length;ci++){_dx=all[ci][0]-all[ci-1][0];_dy=all[ci][1]-all[ci-1][1];_dz=all[ci][2]-all[ci-1][2];cum[ci]=cum[ci-1]+Math.sqrt(_dx*_dx+_dy*_dy+_dz*_dz);}
     traj.cum=cum;
+    traj.escW=buildEscW(prim);   // escort Earth↔Moon anchor blend (see escortPos)
+  }
+  // Per-sample "moon-ness" weight for the escort transform: 1 on Moon-anchored coil samples,
+  // and on each Earth-anchored transfer leg it ramps LINEARLY to 1 at the Moon-adjacent end (LOI / TEI)
+  // and 0 at the Earth end. This lets escortPos hand the transfer smoothly from the flat-rotation frame
+  // (pivoting about the shared Earth launch) onto the TRUE Moon foff samples ahead, so the coil and the
+  // transfer join with no seam — the old hard 0↔1 flip put a ~40,000 km jump at each regime switch.
+  function buildEscW(prim){
+    var n=prim.length,mn=new Array(n),w=new Array(n),i,p;
+    for(i=0;i<n;i++){p=prim[i];mn[i]=!!(p[0]||p[1]||p[2]);}
+    i=0;
+    while(i<n){
+      if(mn[i]){w[i]=1;i++;continue;}
+      var a=i;while(i<n&&!mn[i])i++;var b=i-1,len=(b-a)||1,   // maximal Earth run [a..b]
+          mL=a>0&&mn[a-1],mR=b<n-1&&mn[b+1],k;                // Moon adjacent on left / right?
+      for(k=a;k<=b;k++){
+        w[k]= (mR&&!mL)? (k-a)/len
+            : (mL&&!mR)? (b-k)/len
+            : (mL&&mR) ? 1-Math.min(k-a,b-k)/(len/2)
+            : 0;
+      }
+    }
+    return w;
   }
   function computeFraming(){
     var n=traj.sat.length,i,cx=0,cy=0,cz=0,acc=[];
@@ -206,12 +229,19 @@ export function createViewer(canvas, config) {
   }
   function satPlot(i){if(P.mode==='mission')return traj.sat[i];var s=traj.sat[i],p=traj.prim[i],m=P.mag;return [p[0]+m*(s[0]-p[0]),p[1]+m*(s[1]-p[1]),p[2]+m*(s[2]-p[2])];}
   // Escort = the base OTV mission launched foff samples earlier, re-timed to rendezvous with the REAL Moon.
-  // Split the base path into its body-relative offset + primary; rotate the offset by the epoch angle (fa),
-  // then re-anchor Moon-relative arcs onto the actual Moon at THIS escort's epoch (moon[idx+foff]) so the coil
-  // sits exactly on the Moon (a flat rotation of the whole path can't — the Moon's orbit is inclined+eccentric).
-  function escortPos(idx,foff,ca,sa,total){var s=traj.sat[idx],p=traj.prim[idx],ox=s[0]-p[0],oy=s[1]-p[1],oz=s[2]-p[2],rx=ox*ca-oy*sa,ry=ox*sa+oy*ca;
-    if(p[0]||p[1]||p[2]){var m=traj.moon[(idx+foff)%total];return [m[0]+rx,m[1]+ry,m[2]+oz];}   // Moon arc → anchor on the real Moon
-    return [rx,ry,oz];}                                                                          // Earth arc → rotate about Earth (convoy fan)
+  // Every sample uses ONE formula:   pos = R_fa(s) + w·(moon[idx+foff] − R_fa(moon[idx]))
+  //   • R_fa(s)                     the base path flat-rotated by the epoch angle fa (pivots about Earth → convoy fan)
+  //   • moon[idx+foff] − R_fa(moon[idx])   the exact-vs-flat-rotation Moon discrepancy (the Moon's orbit is inclined
+  //                                 + eccentric, so a flat Z-rotation can't reach the true Moon foff samples ahead)
+  //   • w = traj.escW[idx]          moon-ness: 1 on the coil (full rendezvous), ramping to 0 out at the Earth launch.
+  // At w=1 this reduces to  moon[idx+foff] + R_fa(s − moon[idx])  — the coil sits exactly on the real Moon; the ramp
+  // carries that targeting correction back along the transfer so coil and transfer join seamlessly (was a ~40,000 km
+  // hard jump when the Moon-anchor switched on/off abruptly at LOI/TEI).
+  function escortPos(idx,foff,ca,sa,total){
+    var s=traj.sat[idx],mo=traj.moon[idx],mf=traj.moon[(idx+foff)%total],w=traj.escW?traj.escW[idx]:1;
+    var rsx=s[0]*ca-s[1]*sa, rsy=s[0]*sa+s[1]*ca,               // R_fa(s)
+        rmx=mo[0]*ca-mo[1]*sa, rmy=mo[0]*sa+mo[1]*ca;           // R_fa(moon[idx])
+    return [rsx+w*(mf[0]-rmx), rsy+w*(mf[1]-rmy), s[2]+w*(mf[2]-mo[2])];}
 
   // ================= BODY ART =================
   function bscale(){ return bscaleVal; }
@@ -500,13 +530,12 @@ export function createViewer(canvas, config) {
         else{foff=Math.round(fd/(NF+1)*mSamp);}
         fa=rt*foff;ca=Math.cos(fa);sa=Math.sin(fa);
         fidx=((head-foff)%total+total)%total;
-        if(P.fleetTrail){c.lineWidth=1*kl*S.lw;pa2=null;pi2=-9;var pim=-1,im2,pp2;
+        if(P.fleetTrail){c.lineWidth=1*kl*S.lw;pa2=null;pi2=-9;
           for(jj=0;jj<TL;jj+=2){ci2=((fidx-jj)%total+total)%total;
-            pp2=traj.prim[ci2];im2=(pp2[0]||pp2[1]||pp2[2])?1:0;   // pen-up across the Earth↔Moon regime switch (transfer end is off-Moon, coil is on-Moon)
             pb2=pr(escortPos(ci2,foff,ca,sa,total));
-            if(pa2&&Math.abs(ci2-pi2)<=3&&im2===pim){al2=(1-jj/TL);al2=al2*al2*0.5;
+            if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5;   // escortPos is now seamless across LOI/TEI — no regime pen-up needed, only the loop-wrap guard
               c.strokeStyle='rgba('+(trailCols?(trailCols[ci2]||srgb):srgb)+','+al2.toFixed(3)+')';c.beginPath();c.moveTo(pa2[0],pa2[1]);c.lineTo(pb2[0],pb2[1]);c.stroke();}   // escort trails share the OTV's per-phase colours when P.phaseColors is on
-            pa2=pb2;pi2=ci2;pim=im2;}}
+            pa2=pb2;pi2=ci2;}}
         fp=pr(escortPos(fidx,foff,ca,sa,total));
         if(occ(fp))continue;bodyOrDot(c,fp[0],fp[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);}}   // escorts = same size as the main drone (MARK.drone · markScale)
     if(P.showHop){
