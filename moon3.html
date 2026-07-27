@@ -30,7 +30,7 @@
   body.embed .rail{display:none}
   body.embed .viewport{padding:0;overflow:hidden}
   body.embed .panel{width:100vw;height:100vh;margin:0;border:0;border-radius:0}
-  body.embed .phead,body.embed .pfoot,body.embed .legend,body.embed .foot{display:none}
+  body.embed .phead,body.embed .pfoot{display:none}
   .embedhint{display:none}
   body.embed .embedhint{display:block;position:fixed;left:14px;bottom:14px;z-index:60;pointer-events:none;
     font:12px/1.4 system-ui,-apple-system,sans-serif;color:#cdd6e4;background:rgba(10,12,18,.5);
@@ -82,10 +82,6 @@
   .segbtn{font-family:var(--mono);font-size:11px;background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer}
   .segbtn+.segbtn{border-left:1px solid var(--line)}.segbtn.active{background:rgba(255,85,0,.14);color:var(--orange)}
   .exnote{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.04em}
-  .legend{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:20px;letter-spacing:.04em}
-  .legend span{display:inline-flex;align-items:center;gap:7px}.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
-  .foot{margin-top:30px;font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.06em;border-top:1px solid var(--line);padding-top:18px}
-  .foot b{color:var(--muted);font-weight:400}
 </style>
 </head>
 <body>
@@ -211,14 +207,6 @@
       <canvas class="stage" id="view" width="1080" height="1000"></canvas>
       <div class="pfoot" id="foot"></div>
     </div>
-    <div class="legend">
-      <span><i class="dot" style="background:var(--moon)"></i>Satellite path</span>
-      <span><i class="dot" style="background:#B9C2D0"></i>Moon</span>
-      <span><i class="dot" style="background:var(--earth)"></i>Earth</span>
-      <span><i class="dot" style="background:var(--faint)"></i>Moon's orbit</span>
-    </div>
-    <p class="foot">Nested two-body Kepler · real elements &amp; periods · Earth-fixed inertial frame
-      · <b>orbit magnified so the coil reads — a labelled diagram, not true scale</b></p>
   </main>
 </div>
 
@@ -244,7 +232,7 @@ import { createViewer } from './viewer-core.js';
   function refreshStatic(){ if(viewer) viewer.setConfig({P:P,S:S,labels:P.bodyLabels,orbitLabels:P.orbitLabels}); updateCaption(); }   // visual toggle / style
   function updateCaption(){ var st=viewer?viewer.getState():null, sp=st?st.satPeriod:0, tj=st?st.traj:{}, f;
     var pv=P.periodMul>1?' · sat period <span class="scale">×'+(+P.periodMul).toFixed(0)+'</span> (visual)':'';
-    if(P.mode==='mission'){ f='LEO → staging → TLI → LLO'+(P.roundTrip?' → staging → LEO':' capture')+' · <b>patched-conic schematic</b> · coil ×'+P.mag+pv+'.';
+    if(P.mode==='mission'){ f='LEO → staging → TLI → LLO'+(P.roundTrip?' → staging → LEO':' capture')+' · <b>patched-conic schematic</b> · real elements, not to scale · coil ×'+P.mag+pv+'.';
       if(P.roundTrip&&tj.loopOrbits){var mo=(tj.missionOrbits||0),lo=Math.round(tj.loopOrbits),pk=lo-mo;
         f+=' <span class="scale">loops every '+lo+' Moon orbit'+(lo>1?'s':'')+'</span> (mission '+mo.toFixed(2)+' + '+pk.toFixed(2)+' parked).';} }
     else f=(P.primary==='moon'?'Satellite coils around the Moon as the Moon orbits Earth. ':'Satellite orbits Earth. ')+'Period '+(sp*24).toFixed(2)+' h · ×'+P.mag+pv+'.';
@@ -314,6 +302,8 @@ import { createViewer } from './viewer-core.js';
   showFleetEl.addEventListener('change',function(){P.showFleet=showFleetEl.checked;refreshStatic();updateHash();});
   showBurnsEl.addEventListener('change',function(){P.showBurns=showBurnsEl.checked;refreshStatic();updateHash();});
   phaseColorsEl.addEventListener('change',function(){P.phaseColors=phaseColorsEl.checked;refreshStatic();updateHash();});
+  showLabelsEl.addEventListener('change',function(){P.bodyLabels=showLabelsEl.checked;refreshStatic();updateHash();});
+  showOrbitLabelsEl.addEventListener('change',function(){P.orbitLabels=showOrbitLabelsEl.checked;refreshStatic();updateHash();});
   fleetSpaceEl.addEventListener('change',function(){P.fleetDist=fleetSpaceEl.value==='dist';refreshStatic();updateHash();});
   fleetCountEl.addEventListener('input',function(){P.fleetCount=parseInt(fleetCountEl.value,10)||12;setTxt('fleetCountV',P.fleetCount);refreshStatic();updateHash();});
   trailLenEl.addEventListener('input',function(){P.trailLen=parseFloat(trailLenEl.value)||1;setTxt('trailLenV',P.trailLen.toFixed(1));refreshStatic();updateHash();});

@@ -7,10 +7,18 @@
  *    import { createViewer } from 'viewer-core';
  *    const v = createViewer(canvasEl, { interactive:false, P:{mode:'mission',...}, S:{...},
  *                                       labels:false, labelSet:['earth','moon','otv','tanker','depot'],
+ *                                       orbitLabels:false,
  *                                       onCamera:(cam)=>{}, onTelemetry:(t)=>{} });
- *    v.setConfig({ labels:true });   // live-toggle body labels
  *    v.resize(w, h);      // call from a ResizeObserver, or pass {width,height} in config
  *    v.pause(); v.play(); v.destroy();
+ *
+ *  Live toggles for host UI buttons — all cheap, none recompute the trajectory:
+ *    v.setConfig({ labels:true });                    // body labels (Earth / Moon / OTV / Tanker / Depot)
+ *    v.setConfig({ orbitLabels:true });               // orbit phase tags (LEO / TLI / LLO / TEI / Moon's orbit)
+ *    v.setConfig({ P:{ phaseColors:true } });         // colour the orbit by mission phase (PHASE_RGB below)
+ *    v.setConfig({ P:{ showMoon:true } });            // draw the Moon's orbit ellipse
+ *  Phase colours and the orbit tags share one palette, so a "phase colours" button and a
+ *  "labels" button stay visually consistent. Read current values back via getState().P.
  *
  *  onTelemetry(payload)  — called from the frame loop, throttled ~8 Hz, mission mode only. v1.1:
  *    { phase:'LEO'|'TLI'|'LLO', label, body:'earth'|'moon', progress:0..1,
