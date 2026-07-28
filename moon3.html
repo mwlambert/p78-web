@@ -382,7 +382,8 @@ import { createViewer } from './viewer-core.js';
   vidBtn.addEventListener('click',function(){
     if(recording)return;if(!window.MediaRecorder){exNote.textContent='Video recording not supported here.';return;}
     var mime=pickMime();if(!mime){exNote.textContent='No supported video codec.';return;}
-    var mode=vmodeEl.value,sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=viewer.lastHead();
+    var mode=vmodeEl.value,sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=viewer.lastHead(),
+        yaw0=viewer.getState().camYaw;   // record from the CURRENT camera — drift rides on top of it, as in the live loop
     var LOOP_MS=12000,D=drawMs(),SEQ_MS=D+HOLD_MS+2400;
     var stream=cv.captureStream(60),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:28000000}),chunks=[];  // high bitrate — line-art on black artifacts easily
     rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
@@ -392,8 +393,8 @@ import { createViewer } from './viewer-core.js';
     exNote.textContent='Recording '+(mode==='loop'?'seamless loop (12 s)':'draw sequence')+'…';
     var t0r=null;
     function tick(now){if(t0r===null){t0r=now;rec.start();}var t=now-t0r,done=false,head,phi;
-      if(mode==='loop'){phi=S.drift*Math.sin(TWO*(t/LOOP_MS));head=mh;if(t>=LOOP_MS)done=true;}
-      else{phi=S.drift*Math.sin(now*CAM_W);head=t<D?Math.max(2,Math.round((t/D)*mh)):mh;if(t>=SEQ_MS)done=true;}
+      if(mode==='loop'){phi=yaw0+S.drift*Math.sin(TWO*(t/LOOP_MS));head=mh;if(t>=LOOP_MS)done=true;}
+      else{phi=yaw0+S.drift*Math.sin(now*CAM_W);head=t<D?Math.max(2,Math.round((t/D)*mh)):mh;if(t>=SEQ_MS)done=true;}
       viewer.renderFrame(cx,W,H,{head:head,phi:phi,grow:mode!=='loop',now:now});if(done)rec.stop();else requestAnimationFrame(tick);}
     requestAnimationFrame(tick);});
 
