@@ -192,14 +192,45 @@
     <div class="exhead">Export</div>
     <div class="row">
       <label class="mini">Width px <input type="number" id="outw" value="1600" min="400" max="4000" step="100"></label>
-      <select class="sel" id="outfmt" aria-label="Output size"><option value="free">Fit · from Width</option><option value="ld">Landscape · 1920×1080 (16:9)</option><option value="ig1440">Portrait · 1080×1440 (IG)</option><option value="ig1350">Portrait · 1080×1350 (4:5)</option><option value="reel">Reel · 1080×1920 (9:16)</option><option value="sq">Square · 1080×1080</option></select>
-      <label class="mini chk"><input type="checkbox" id="frameGuide"> Preview frame</label>
+      <select class="sel" id="outfmt" aria-label="Output size"><option value="free">Fit · from Width</option><option value="ld">Landscape · 1920×1080 (16:9)</option><option value="ig1440">Portrait · 1080×1440 (IG)</option><option value="ig1350">Portrait · 1080×1350 (4:5)</option><option value="reel" selected>Reel · 1080×1920 (9:16)</option><option value="sq">Square · 1080×1080</option></select>
+      <label class="mini chk"><input type="checkbox" id="frameGuide" checked> Preview frame</label>
       <label class="mini chk"><input type="checkbox" id="transp"> Transparent bg</label>
       <button class="btn" id="pngBtn">PNG</button>
       <button class="btn" id="svgBtn">SVG</button>
-      <select class="sel" id="vmode" aria-label="Video mode"><option value="seq">Video · draw sequence</option><option value="loop">Video · seamless loop</option></select>
+      <select class="sel" id="vmode" aria-label="Video mode"><option value="seq">Video · draw sequence</option><option value="loop">Video · seamless loop</option><option value="push" selected>Video · push-back</option></select>
       <button class="btn" id="vidBtn">Record</button>
       <span class="exnote" id="exNote"></span>
+    </div>
+    <div id="pushRow" style="display:none">
+      <div class="row">
+        <label class="mini">Mission · End at <span id="pushEndV">—</span> <input type="range" id="pushEnd" min="10" max="1000" step="1" value="420" style="width:120px"></label>
+        <label class="mini" title="Seconds of video until the mission reaches End at (sets the orbit playback speed)">Length <span id="pushLenV">30</span> s <input type="range" id="pushLen" min="3" max="90" step="1" value="30" style="width:96px"></label>
+        <label class="mini" title="Total video length; the fleet keeps flying the whole time">Video <span id="pushVidV">120</span> s <input type="range" id="pushVid" min="10" max="300" step="1" value="120" style="width:96px"></label>
+        <label class="mini" title="Escorts, all flying from the start (same setting as Scene → Escorts)">Fleet <span id="pushFleetV">12</span> <input type="range" id="pushFleet" min="1" max="24" step="1" value="12" style="width:80px"></label>
+        <label class="mini" title="Camera tilt (same setting as Style → Tilt)">Tilt <span id="pushTiltV">49</span>° <input type="range" id="pushTilt" min="0" max="88" step="1" value="49" style="width:80px"></label>
+        <label class="mini" title="Rotate the orbits around Earth (same as dragging the viewer left/right). Earth stays at its End x/y.">Rotate <span id="pushYawV">0</span>° <input type="range" id="pushYaw" min="-180" max="180" step="1" value="0" style="width:96px"></label>
+      </div>
+      <div class="row">
+        <label class="mini">Start · Earth size <span id="pushFillV">40</span>% <input type="range" id="pushFill" min="5" max="140" step="1" value="40" style="width:96px"></label>
+        <label class="mini">x <span id="pushSXV">50</span>% <input type="range" id="pushSX" min="0" max="100" step="1" value="50" style="width:80px"></label>
+        <label class="mini">y <span id="pushSYV">50</span>% <input type="range" id="pushSY" min="0" max="100" step="1" value="50" style="width:80px"></label>
+      </div>
+      <div class="row">
+        <label class="mini">End · Earth size <span id="pushESizeV">3.0</span>% <input type="range" id="pushESize" min="0" max="1000" step="1" value="434" style="width:96px"></label>
+        <label class="mini">x <span id="pushEXV">88</span>% <input type="range" id="pushEX" min="0" max="100" step="1" value="88" style="width:80px"></label>
+        <label class="mini">y <span id="pushEYV">49</span>% <input type="range" id="pushEY" min="0" max="100" step="1" value="49" style="width:80px"></label>
+      </div>
+      <div class="row">
+        <label class="mini">Zoom starts <span id="pushT0V">0.0</span> s <input type="range" id="pushT0" min="0" max="90" step="0.5" value="0" style="width:96px"></label>
+        <label class="mini">Zoom speed <span id="pushSpeedV">1.15</span>× /s <input type="range" id="pushSpeed" min="1.02" max="2" step="0.01" value="1.15" style="width:96px"></label>
+        <button class="btn" id="pushPrev">Preview</button>
+      </div>
+      <div class="row">
+        <label class="mini" title="Escort trail length while the camera is close (0 = escorts hidden: only the lead OTV draws)">Escort tails · start <span id="pushTail0V">0</span>× <input type="range" id="pushTail0" min="0" max="2" step="0.05" value="0" style="width:96px"></label>
+        <label class="mini" title="Escort trail length once zoomed out (1 = the normal length)">end <span id="pushTail1V">1</span>× <input type="range" id="pushTail1" min="0" max="2" step="0.05" value="1" style="width:96px"></label>
+        <label class="mini" title="Tails stay at the start value until the zoom is this far along, then grow to the end value as the zoom finishes">grow after <span id="pushTailDV">50</span>% of zoom <input type="range" id="pushTailD" min="0" max="95" step="1" value="50" style="width:96px"></label>
+      </div>
+      <div class="row"><span class="exnote" id="pushDurV"></span></div>
     </div>
     <div class="row" style="margin-top:4px"><span class="exnote" id="exPlan" style="opacity:.8"></span></div>
   </div>
@@ -350,7 +381,7 @@ import { createViewer } from './viewer-core.js';
   document.getElementById('outfmt').addEventListener('change',function(){if(document.getElementById('frameGuide').checked)fit();});
   function download(blob,name){var u=URL.createObjectURL(blob),an=document.createElement('a');an.href=u;an.download=name;document.body.appendChild(an);an.click();setTimeout(function(){an.remove();URL.revokeObjectURL(u);},1500);}
   document.getElementById('pngBtn').addEventListener('click',function(){
-    var sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H);viewer.snapshot(cv.getContext('2d'),W,H,{transparent:transpEl.checked});
+    var sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H);var cam=camFor(W,H);viewer.snapshot(cv.getContext('2d'),W,H,{transparent:transpEl.checked,zoom:cam.zoom,panX:cam.panX,panY:cam.panY});
     cv.toBlob(function(b){download(b,'p78-orbit-'+P.primary+'.png');exNote.textContent='PNG exported.';},'image/png');});
 
   // SVG still
@@ -378,40 +409,193 @@ import { createViewer } from './viewer-core.js';
   // video
   function pickMime(){var t=['video/mp4;codecs=avc1.640028','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'],i;
     for(i=0;i<t.length;i++){if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t[i]))return t[i];}return '';}
-  var recording=false,vidBtn=document.getElementById('vidBtn');
-  vidBtn.addEventListener('click',function(){
-    if(recording)return;if(!window.MediaRecorder){exNote.textContent='Video recording not supported here.';return;}
-    var mime=pickMime();if(!mime){exNote.textContent='No supported video codec.';return;}
-    var mode=vmodeEl.value,sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H),cx=cv.getContext('2d'),mh=viewer.lastHead(),
-        yaw0=viewer.getState().camYaw;   // record from the CURRENT camera — drift rides on top of it, as in the live loop
-    var LOOP_MS=12000,D=drawMs(),SEQ_MS=D+HOLD_MS+2400;
-    var stream=cv.captureStream(60),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:28000000}),chunks=[];  // high bitrate — line-art on black artifacts easily
-    rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
-    rec.onstop=function(){recording=false;vidBtn.textContent='Record';vidBtn.removeAttribute('disabled');
-      var ext=mime.indexOf('mp4')>=0?'mp4':'webm';download(new Blob(chunks,{type:mime}),'p78-orbit-'+P.primary+'.'+ext);exNote.textContent='Video exported ('+ext+').';};
-    recording=true;vidBtn.textContent='Recording…';vidBtn.setAttribute('disabled','');
-    exNote.textContent='Recording '+(mode==='loop'?'seamless loop (12 s)':'draw sequence')+'…';
-    var t0r=null;
-    function tick(now){if(t0r===null){t0r=now;rec.start();}var t=now-t0r,done=false,head,phi;
-      if(mode==='loop'){phi=yaw0+S.drift*Math.sin(TWO*(t/LOOP_MS));head=mh;if(t>=LOOP_MS)done=true;}
-      else{phi=yaw0+S.drift*Math.sin(now*CAM_W);head=t<D?Math.max(2,Math.round((t/D)*mh)):mh;if(t>=SEQ_MS)done=true;}
-      viewer.renderFrame(cx,W,H,{head:head,phi:phi,grow:mode!=='loop',now:now});if(done)rec.stop();else requestAnimationFrame(tick);}
+  // The live camera's pan is in viewer-canvas px; scale it to an export of W×H (zoom is already relative to min(W,H)).
+  function camFor(W,H){var st=viewer.getState(),s=Math.min(W,H)/Math.max(1,Math.min(VIEW.clientWidth,VIEW.clientHeight));
+    return {zoom:st.zoom,panX:st.panX*s,panY:st.panY*s};}
+
+  // ---- push-back: the camera moves from a START frame to an END frame; the mission plays underneath, untouched ----
+  //   start / end frame — Earth's on-screen size (diameter, % of the frame's short side) and position (% of W, H).
+  //                       Resolution-independent, so preview and every export size frame identically.
+  //   zoom              — begins at `Zoom starts` s and widens the view by `Zoom speed`× per second (constant on a log
+  //                       scale = steady perceived speed, with a short fixed ramp in/out) until it reaches the end frame;
+  //                       Earth slides start spot → end spot in step with the zoom.
+  //   mission           — the head runs at a steady rate that reaches `End at` after `Length` s (live-loop pacing), and keeps
+  //                       going — looping through the mission — for the rest of the video.
+  // The video lasts `Video` s, or longer if the zoom needs it (zoom end + 1 s).
+  // Escorts: the whole fleet flies from the first frame, spread through the mission as in the live view; their trail length
+  // and opacity follow the zoom (fleetLook) once it is `grow after` % along, so the opening shows the lead alone and the
+  // network builds as it pulls back.
+  var PUSH_FPS=60, R_EARTH=6371, PUSH_RAMP=0.8, ESIZE_MIN=0.3, ESIZE_SPAN=200;   // end size slider is log: 0.3% … 60%
+  function pushEndHead(){return Math.max(2,Math.round(parseInt(pushEndEl.value,10)/1000*viewer.lastHead()));}
+  function endSize(){return ESIZE_MIN*Math.pow(ESIZE_SPAN,parseInt(pushESizeEl.value,10)/1000);}   // % of short side
+  function endSizeToSlider(s){return 1000*Math.log(Math.max(ESIZE_MIN,s)/ESIZE_MIN)/Math.log(ESIZE_SPAN);}
+  function num(id){return parseFloat(document.getElementById(id).value);}
+  // Frame geometry at W×H: Earth on screen (pan 0) = pz0 + zoom·v, and zoom ↔ Earth size% is linear.
+  function pushGeo(W,H){var st=viewer.getState(),phi=st.camYaw,mn=Math.min(W,H),base=mn*0.5/((st.traj.rMax||384400)*1.14),
+      pz0=viewer.getProjector(W,H,phi,{zoom:0,panX:0,panY:0})([0,0,0]),pz1=viewer.getProjector(W,H,phi,{zoom:1,panX:0,panY:0})([0,0,0]);
+    return {W:W,H:H,phi:phi,pz0:pz0,vx:pz1[0]-pz0[0],vy:pz1[1]-pz0[1],zPer:mn*0.005/(R_EARTH*base)};}   // zPer = zoom per 1% Earth size
+  function camAt(g,size,xp,yp){var z=size*g.zPer;return {zoom:z,panX:xp/100*g.W-(g.pz0[0]+z*g.vx),panY:yp/100*g.H-(g.pz0[1]+z*g.vy)};}
+  // zoom timing: log-distance D at cruise rate v = ln(speed)/s, with PUSH_RAMP s ramps → ends at t0 + D/v + ramp
+  function zoomTiming(){var D=Math.log(Math.max(1.0001,num('pushFill')/endSize())),v=Math.log(num('pushSpeed')),r=Math.min(PUSH_RAMP,D/v),t0=num('pushT0');
+    return {t0:t0,D:D,v:v,r:r,T:D/v+r,t1:t0+D/v+r};}
+  function zoomProg(zt,t){var tt=t-zt.t0,s;if(tt<=0)return 0;if(tt>=zt.T)return 1;
+    if(tt<zt.r)s=zt.v*tt*tt/(2*zt.r);else if(tt<zt.T-zt.r)s=zt.v*zt.r/2+zt.v*(tt-zt.r);else s=zt.D-zt.v*(zt.T-tt)*(zt.T-tt)/(2*zt.r);
+    return s/zt.D;}
+  function pushPlan(W,H){
+    var g=pushGeo(W,H),endHead=pushEndHead(),zt=zoomTiming(),s0=num('pushFill'),s1=endSize(),
+        sx=num('pushSX'),sy=num('pushSY'),ex=num('pushEX'),ey=num('pushEY'),len=num('pushLen');
+    var N=Math.max(2,Math.round(len*PUSH_FPS)),T=Math.ceil(Math.max(num('pushVid'),zt.t1+1)*PUSH_FPS),frames=[],f,q,c;
+    for(f=0;f<T;f++){q=zoomProg(zt,f/PUSH_FPS);
+      c=camAt(g,s0*Math.pow(s1/s0,q),sx+(ex-sx)*q,sy+(ey-sy)*q);c.head=Math.round(f/(N-1)*endHead);c.q=q;frames.push(c);}   // past End at the head keeps going (renderFrame wraps it)
+    return {frames:frames,phi:g.phi,endHead:endHead,secs:T/PUSH_FPS};}
+  // Escort look at zoom progress q: trail length runs Tail·start → Tail·end; with Tail·start 0 the escorts are hidden at
+  // first and fade in over the first quarter of the zoom, so the shot opens on the lead OTV alone.
+  function fleetLook(q){var a=num('pushTail0'),b=num('pushTail1'),d=num('pushTailD')/100,r=q<=d?0:(q-d)/(1-d);   // r: 0 until the zoom is `grow after` % along, then → 1
+    return {trail:a+(b-a)*r,alpha:a>0?1:Math.min(1,r/0.25)};}
+  function pushFrame(c,W,H,plan,t,now){var fr=plan.frames[Math.min(plan.frames.length-1,Math.floor(t/1000*PUSH_FPS))];
+    var fl=fleetLook(fr.q);viewer.renderFrame(c,W,H,{head:fr.head,phi:plan.phi,grow:true,zoom:fr.zoom,panX:fr.panX,panY:fr.panY,now:now,fleetTrail:fl.trail,fleetAlpha:fl.alpha});
+    return t/1000>=plan.secs;}
+  var pushLenEl=document.getElementById('pushLen'),pushESizeEl=document.getElementById('pushESize'),pushEndEl=document.getElementById('pushEnd'),
+      previewing=false,prevRun=0,prevWas=false;
+  function pushEndLabel(){var tel=viewer.getState().traj.tel,h=pushEndHead(),t=tel&&tel[Math.min(tel.length-1,h)];
+    setTxt('pushEndV','%'+(t?' · '+t.label:''));}
+  // Every push-back slider gets a typed number box in place of its value readout, kept in sync both ways.
+  // to/from map slider ↔ shown value (End at is ‰ → %, End size is a log slider → %).
+  var PUSH_NUMS={pushEnd:{to:function(v){return v/10;},from:function(n){return n*10;},dp:1},
+    pushESize:{to:function(){return endSize();},from:function(n){return endSizeToSlider(n);},dp:2},
+    pushLen:{dp:0},pushVid:{dp:0},pushFleet:{dp:0},pushTilt:{dp:0},pushYaw:{dp:0},pushFill:{dp:0},pushSX:{dp:0},pushSY:{dp:0},pushEX:{dp:0},pushEY:{dp:0},pushT0:{dp:1},pushSpeed:{dp:2},pushTail0:{dp:2},pushTail1:{dp:2},pushTailD:{dp:0}};
+  Object.keys(PUSH_NUMS).forEach(function(id){var rg=document.getElementById(id),m=PUSH_NUMS[id],sp=document.getElementById(id+'V'),nb=document.createElement('input');
+    if(id!=='pushFleet'&&id!=='pushTilt')rg.step='any';                                              // typed values aren't snapped to the slider step
+    nb.type='number';nb.id=id+'N';nb.step=Math.pow(10,-m.dp);nb.style.width='64px';
+    if(!m.to){nb.min=rg.min;nb.max=rg.max;}
+    sp.parentNode.insertBefore(nb,sp);if(id!=='pushEnd')sp.style.display='none';   // End at keeps its "% · phase" tag
+    function apply(){var n=parseFloat(nb.value);if(!isFinite(n))return;rg.value=m.from?m.from(n):n;rg.dispatchEvent(new Event('input'));}
+    nb.addEventListener('change',apply);nb.addEventListener('keydown',function(e){if(e.key==='Enter')apply();});});
+  function syncNums(){Object.keys(PUSH_NUMS).forEach(function(id){var nb=document.getElementById(id+'N'),m=PUSH_NUMS[id],v;
+    if(!nb||nb===document.activeElement)return;v=parseFloat(document.getElementById(id).value);nb.value=(m.to?m.to(v):v).toFixed(m.dp);});}
+  function pushLabels(){document.getElementById('pushFleet').value=P.fleetCount;document.getElementById('pushTilt').value=Math.round(S.tilt);
+    if(viewer){var y=viewer.getState().camYaw/Math.PI*180;document.getElementById('pushYaw').value=((y%360)+540)%360-180;}   // yaw → −180…180°
+    syncNums();}
+  function cancelPreview(){prevRun++;previewing=false;}
+  // END frame shown live: the viewer's camera IS the end frame (End sliders → camera; scroll/pan/rotate → End sliders).
+  // Painted exactly as the video's last frame (drawn-so-far trail, relay escorts), not the viewer's full-orbit still.
+  function pushRenderEnd(){if(!viewer||previewing||vmodeEl.value!=='push')return;
+    viewer.renderFrame(VIEW.getContext('2d'),VIEW.clientWidth,VIEW.clientHeight,{head:pushEndHead(),grow:true,fleetTrail:fleetLook(1).trail,fleetAlpha:fleetLook(1).alpha});}
+  function pushShowEnd(){if(!viewer)return;cancelPreview();var W=VIEW.clientWidth,H=VIEW.clientHeight,c=camAt(pushGeo(W,H),endSize(),num('pushEX'),num('pushEY'));
+    viewer.setConfig({zoom:c.zoom,panX:c.panX,panY:c.panY});viewer.seek(pushEndHead(),{index:true});syncPlayBtn();pushEndLabel();pushRenderEnd();}
+  function pushCamToEnd(){if(vmodeEl.value!=='push'||!viewer||previewing)return;     // viewer interaction → End sliders
+    var W=VIEW.clientWidth,H=VIEW.clientHeight,g=pushGeo(W,H),st=viewer.getState();
+    pushESizeEl.value=endSizeToSlider(st.zoom/g.zPer);
+    document.getElementById('pushEX').value=Math.round((g.pz0[0]+st.zoom*g.vx+st.panX)/W*100);
+    document.getElementById('pushEY').value=Math.round((g.pz0[1]+st.zoom*g.vy+st.panY)/H*100);
+    pushLabels();updatePlan();requestAnimationFrame(pushRenderEnd);}                  // after the viewer's own repaint of this interaction
+  // START frame shown live while its sliders move (drawn over the viewer; the viewer camera stays on the end frame)
+  function pushShowStart(){if(!viewer)return;cancelPreview();if(viewer.isPlaying())viewer.pause();syncPlayBtn();
+    var W=VIEW.clientWidth,H=VIEW.clientHeight,g=pushGeo(W,H),c=camAt(g,num('pushFill'),num('pushSX'),num('pushSY'));
+    viewer.renderFrame(VIEW.getContext('2d'),W,H,{head:2,phi:g.phi,grow:true,zoom:c.zoom,panX:c.panX,panY:c.panY,fleetTrail:fleetLook(0).trail,fleetAlpha:fleetLook(0).alpha});}
+  pushEndEl.addEventListener('input',pushShowEnd);
+  function pushEndDefault(){var tel=viewer.getState().traj.tel,i;if(!tel)return;     // default: just after arrival in lunar orbit
+    for(i=0;i<tel.length;i++)if(tel[i].ph==='LLO'){pushEndEl.value=Math.min(1000,Math.round((i+tel.length*0.03)/viewer.lastHead()*1000));break;}
+    pushEndLabel();}
+  ['pushFill','pushSX','pushSY','pushTail0'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){pushLabels();updatePlan();pushShowStart();});});
+  ['pushESize','pushEX','pushEY','pushTail1'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){pushLabels();updatePlan();pushShowEnd();});});
+  // Fleet / Tilt are the scene's own escort count and camera tilt, mirrored here (pushLabels pulls them back from P / S)
+  document.getElementById('pushFleet').addEventListener('input',function(){P.fleetCount=parseInt(this.value,10)||12;
+    fleetCountEl.value=P.fleetCount;setTxt('fleetCountV',P.fleetCount);refreshStatic();updateHash();pushLabels();pushShowEnd();});
+  document.getElementById('pushTilt').addEventListener('input',function(){S.tilt=parseFloat(this.value);writeStyle();refreshStatic();updateHash();pushLabels();pushShowEnd();});
+  document.getElementById('pushYaw').addEventListener('input',function(){viewer.setConfig({yaw:parseFloat(this.value)*Math.PI/180});updateHash();pushLabels();pushShowEnd();});
+  fleetCountEl.addEventListener('input',function(){pushLabels();pushRenderEnd();});
+  document.getElementById('sTilt').addEventListener('input',function(){pushLabels();pushShowEnd();});
+  ['pushLen','pushVid','pushT0','pushSpeed','pushTailD'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){pushLabels();updatePlan();});});
+  // Preview plays the push-back on the live canvas (viewer-sized), then returns to the end frame.
+  // Clicking again mid-preview restarts it with the current slider values.
+  document.getElementById('pushPrev').addEventListener('click',function(){
+    if(recording)return;var W=VIEW.clientWidth,H=VIEW.clientHeight,c=VIEW.getContext('2d'),run=++prevRun,t0=null;
+    if(!previewing){prevWas=viewer.isPlaying();viewer.pause();previewing=true;}
+    var plan=pushPlan(W,H);syncPlayBtn();                                          // re-solved each click → slider tweaks apply
+    function tick(now){if(run!==prevRun)return;if(t0===null)t0=now;                // a newer click took over
+      if(pushFrame(c,W,H,plan,now-t0,now)){previewing=false;pushShowEnd();if(prevWas)viewer.play();syncPlayBtn();}
+      else requestAnimationFrame(tick);}
     requestAnimationFrame(tick);});
+
+  // Every video mode is a clip: {ms, draw(t)} — paint the frame at t ms into the export canvas.
+  function videoClip(mode,cx,W,H){var mh=viewer.lastHead(),yaw0=viewer.getState().camYaw,cam=camFor(W,H);   // record from the CURRENT camera — drift rides on top of it
+    if(mode==='push'){var plan=pushPlan(W,H);return {ms:plan.secs*1000,draw:function(t){pushFrame(cx,W,H,plan,t,t);}};}
+    if(mode==='loop'){var LOOP_MS=12000;return {ms:LOOP_MS,draw:function(t){
+      viewer.renderFrame(cx,W,H,{head:mh,phi:yaw0+S.drift*Math.sin(TWO*(t/LOOP_MS)),now:t,zoom:cam.zoom,panX:cam.panX,panY:cam.panY});}};}
+    var D=drawMs();return {ms:D+HOLD_MS+2400,draw:function(t){
+      viewer.renderFrame(cx,W,H,{head:t<D?Math.max(2,Math.round((t/D)*mh)):mh,phi:yaw0+S.drift*Math.sin(t*CAM_W),grow:true,now:t,zoom:cam.zoom,panX:cam.panX,panY:cam.panY});}};}
+
+  // Offline render: every frame drawn at an exact 1/60 s step and encoded with WebCodecs into a real (indexed) MP4.
+  // Nothing is real-time, so slow frames or a hidden tab can't drop frames — the render just takes as long as it takes.
+  var VID_FPS=60, VID_BPS=20000000;   // 20 Mbps H.264 — clean line-art on black; ~150 MB per minute at 1080×1920
+  var MP4_MUXER='https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.mjs';
+  var recording=false,cancelRec=false,vidBtn=document.getElementById('vidBtn');
+  function yieldNow(){return new Promise(function(r){var ch=new MessageChannel();ch.port1.onmessage=function(){r();};ch.port2.postMessage(0);});}   // un-throttled yield (setTimeout is clamped, and ~1/s in hidden tabs)
+  async function pickAvc(W,H){var c=['avc1.640033','avc1.64002A','avc1.4D0033','avc1.42003E'],i,r;   // High 5.1 → 4.2 → Main → Baseline
+    for(i=0;i<c.length;i++){try{r=await VideoEncoder.isConfigSupported({codec:c[i],width:W,height:H,bitrate:VID_BPS,framerate:VID_FPS});
+      if(r&&r.supported)return c[i];}catch(e){}}return null;}
+  async function renderOffline(clip,cv,W,H){
+    var codec=await pickAvc(W,H);if(!codec)throw new Error('No H.264 encoder for '+W+'×'+H);
+    var lib=await import(MP4_MUXER),err=null;
+    var muxer=new lib.Muxer({target:new lib.ArrayBufferTarget(),video:{codec:'avc',width:W,height:H,frameRate:VID_FPS},fastStart:'in-memory'});
+    var enc=new VideoEncoder({output:function(chunk,meta){muxer.addVideoChunk(chunk,meta);},error:function(e){err=e;}});
+    enc.configure({codec:codec,width:W,height:H,bitrate:VID_BPS,framerate:VID_FPS,latencyMode:'quality',avc:{format:'avc'}});
+    var n=Math.ceil(clip.ms/1000*VID_FPS),f,fr,us=1e6/VID_FPS,lastUI=0,tStart=performance.now(),el,eta;
+    for(f=0;f<n;f++){if(cancelRec||err)break;
+      clip.draw(f*1000/VID_FPS);
+      fr=new VideoFrame(cv,{timestamp:Math.round(f*us),duration:Math.round(us)});enc.encode(fr,{keyFrame:f%(VID_FPS*2)===0});fr.close();
+      if(enc.encodeQueueSize>6)await new Promise(function(r){enc.addEventListener('dequeue',r,{once:true});});   // backpressure
+      else await yieldNow();
+      if(performance.now()-lastUI>250){lastUI=performance.now();el=(lastUI-tStart)/1000;eta=f>0?el/f*(n-f):0;
+        vidBtn.textContent='Cancel · '+Math.round(f/n*100)+'%';
+        exNote.textContent='Rendering frame '+f+' / '+n+(f>30?' · ~'+Math.ceil(eta)+' s left':'')+'…';
+        if(!document.hidden)await new Promise(function(r){setTimeout(r,0);});}}    // let the progress paint (skipped when hidden — timers are throttled there)
+    if(err)throw err;
+    if(cancelRec){try{enc.close();}catch(e){}return null;}
+    exNote.textContent='Finishing MP4…';await enc.flush();enc.close();muxer.finalize();
+    return new Blob([muxer.target.buffer],{type:'video/mp4'});}
+  // Fallback (no WebCodecs): real-time MediaRecorder capture — can drop frames if rendering can't keep up.
+  function renderRealtime(clip,cv,done){var mime=pickMime();if(!mime){exNote.textContent='No supported video codec.';done(null);return;}
+    var rec=new MediaRecorder(cv.captureStream(60),{mimeType:mime,videoBitsPerSecond:28000000}),chunks=[],t0r=null;
+    rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
+    rec.onstop=function(){done(new Blob(chunks,{type:mime}),mime.indexOf('mp4')>=0?'mp4':'webm');};
+    function tick(now){if(t0r===null){t0r=now;rec.start();}var t=now-t0r;clip.draw(t);
+      if(t>=clip.ms||cancelRec)rec.stop();else requestAnimationFrame(tick);}
+    requestAnimationFrame(tick);}
+  vidBtn.addEventListener('click',function(){
+    if(recording){cancelRec=true;return;}                                          // second click = cancel
+    if(previewing)pushShowEnd();                                                    // Record cancels a running preview
+    var mode=vmodeEl.value,sz=outSize(),W=sz.w,H=sz.h,cv=mkCanvas(W,H),clip=videoClip(mode,cv.getContext('2d'),W,H),name='p78-orbit-'+(mode==='push'?'pushback':P.primary);
+    recording=true;cancelRec=false;vidBtn.textContent='Cancel';
+    function finish(blob,ext){recording=false;vidBtn.textContent='Record';
+      if(cancelRec){exNote.textContent='Video cancelled.';return;}
+      if(blob){download(blob,name+'.'+ext);exNote.textContent='Video exported ('+ext+', '+(blob.size/1048576).toFixed(0)+' MB).';}}
+    if(window.VideoEncoder&&window.VideoFrame){
+      renderOffline(clip,cv,W,H).then(function(b){finish(b,'mp4');},function(e){recording=false;vidBtn.textContent='Record';exNote.textContent='Video failed: '+(e&&e.message||e);});}
+    else if(window.MediaRecorder){exNote.textContent='Recording in real time (this browser has no WebCodecs)…';renderRealtime(clip,cv,finish);}
+    else{recording=false;vidBtn.textContent='Record';exNote.textContent='Video recording not supported here.';}});
 
   // live export readout — exact dims + mode + clip length, so what you'll get is never a guess
   var exPlan=document.getElementById('exPlan');
   function updatePlan(){var s=outSize(),mode=vmodeEl.value,
-    secs=mode==='loop'?12.0:(drawMs()+HOLD_MS+2400)/1000,
-    ml=mode==='loop'?'seamless loop':'draw sequence';
+    zt=zoomTiming(),
+    secs=mode==='loop'?12.0:mode==='push'?Math.max(num('pushVid'),zt.t1+1):(drawMs()+HOLD_MS+2400)/1000,
+    ml=mode==='loop'?'seamless loop':mode==='push'?'push-back':'draw sequence';
+    document.getElementById('pushRow').style.display=mode==='push'?'':'none';
+    setTxt('pushDurV','Zoom runs '+zt.t0.toFixed(1)+' s → '+zt.t1.toFixed(1)+' s ('+(zt.t1-zt.t0).toFixed(1)+' s, '+Math.exp(zt.D).toFixed(1)+'× wider) · mission reaches End at '+num('pushLen').toFixed(0)+' s');
     exPlan.textContent='Video → '+s.w+'×'+s.h+' · '+ml+' · ≈ '+secs.toFixed(1)+' s'+(mode==='loop'?' (fixed)':'');}
   document.getElementById('outfmt').addEventListener('change',updatePlan);
   vmodeEl.addEventListener('change',updatePlan);
+  var pushEndSet=false;
+  vmodeEl.addEventListener('change',function(){if(vmodeEl.value!=='push')return;   // entering push-back: jump to the end frame so it can be framed
+    if(!pushEndSet){pushEndDefault();pushEndSet=true;}pushShowEnd();});
   document.getElementById('animdur').addEventListener('input',updatePlan);
-  updatePlan();
+  pushLabels();updatePlan();
 
   // body art — default equirectangular globe maps (custom-art upload panel removed)
-  (function(){var im=new Image();im.onload=function(){if(viewer)viewer.setBodyImage('earth',im,im.src);bodyData.earth=im.src;};im.src='assets/earth-map.jpg';})();   // default Earth = equirectangular daymap → sphere-mapped globe
-  (function(){var im=new Image();im.onload=function(){if(viewer)viewer.setBodyImage('moon',im,im.src);bodyData.moon=im.src;};im.src='assets/moon-map.jpg';})();               // default Moon = equirectangular lunar map → globe
+  (function(){var im=new Image();im.onload=function(){if(viewer)viewer.setBodyImage('earth',im,im.src);bodyData.earth=im.src;pushRenderEnd();};im.src='assets/earth-map.jpg';})();   // default Earth = equirectangular daymap → sphere-mapped globe
+  (function(){var im=new Image();im.onload=function(){if(viewer)viewer.setBodyImage('moon',im,im.src);bodyData.moon=im.src;pushRenderEnd();};im.src='assets/moon-map.jpg';})();               // default Moon = equirectangular lunar map → globe
 
   // style + URL state
   var styleCtl=[['cSat','sat','c'],['cRef','ref','c'],['cBg','bg','c'],
@@ -422,12 +606,18 @@ import { createViewer } from './viewer-core.js';
   function writeStyle(){styleCtl.forEach(function(m){var el=document.getElementById(m[0]);if(el)el.value=S[m[1]];});syncStyleLabels();}
   function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))));}
   function dec(s){return JSON.parse(decodeURIComponent(escape(atob(s))));}
-  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,coast:P.coast,periodMul:P.periodMul,animDur:P.animDur,roundTrip:P.roundTrip,showMoon:P.showMoon,showSats:P.showSats,showLag:P.showLag,showTrail:P.showTrail,showHop:P.showHop,showFleet:P.showFleet,fleetDist:P.fleetDist,fleetTrail:P.fleetTrail,fleetCount:P.fleetCount,trailLen:P.trailLen,showBurns:P.showBurns,phaseColors:P.phaseColors,sun:P.sun,bodyLabels:P.bodyLabels,orbitLabels:P.orbitLabels},preset:presetEl.value};}
+  function getState(){return {S:S,P:{mode:P.mode,primary:P.primary,alt:P.alt,e:P.e,inc:P.inc,mag:P.mag,span:P.span,raise:P.raise,coast:P.coast,periodMul:P.periodMul,animDur:P.animDur,roundTrip:P.roundTrip,showMoon:P.showMoon,showSats:P.showSats,showLag:P.showLag,showTrail:P.showTrail,showHop:P.showHop,showFleet:P.showFleet,fleetDist:P.fleetDist,fleetTrail:P.fleetTrail,fleetCount:P.fleetCount,trailLen:P.trailLen,showBurns:P.showBurns,phaseColors:P.phaseColors,sun:P.sun,bodyLabels:P.bodyLabels,orbitLabels:P.orbitLabels},preset:presetEl.value,cam:camState(),ui:uiState()};}
+  // camera + export/push-back controls ride in the URL too, so a refresh keeps the framed end shot (pan stored per min-dimension)
+  var UI_IDS=['outfmt','frameGuide','vmode','pushEnd','pushLen','pushVid','pushFill','pushSX','pushSY','pushESize','pushEX','pushEY','pushT0','pushSpeed','pushTail0','pushTail1','pushTailD'],savedCam=null,savedUI=null;
+  function viewMin(){return Math.max(1,Math.min(VIEW.clientWidth,VIEW.clientHeight));}
+  function camState(){if(!viewer)return savedCam;var st=viewer.getState(),m=viewMin();return {z:st.zoom,px:st.panX/m,py:st.panY/m,yaw:st.camYaw};}
+  function uiState(){var o={};UI_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o[id]=el.type==='checkbox'?el.checked:el.value;});return o;}
   function updateHash(){try{history.replaceState(null,'','#s='+enc(getState()));}catch(e){}}
   function loadFromHash(){var m=(location.hash||'').match(/s=([^&]+)/);if(!m)return;
     try{var st=dec(m[1]);if(st.S)for(var a in st.S){if(S.hasOwnProperty(a))S[a]=st.S[a];}
       if(st.P)for(var b in st.P){if(P.hasOwnProperty(b))P[b]=st.P[b];}
-      if(st.preset)presetEl.value=st.preset;}catch(e){}}
+      if(st.preset)presetEl.value=st.preset;savedCam=st.cam||null;savedUI=st.ui||null;}catch(e){}}
+  UI_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'||el.type==='checkbox'?'change':'input',function(){updateHash();});});
   styleCtl.forEach(function(m){var el=document.getElementById(m[0]);if(el)el.addEventListener('input',function(){readStyle();refreshStatic();updateHash();});});
   document.getElementById('copyLink').addEventListener('click',function(){updateHash();var url=location.href;
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){exNote.textContent='Link copied.';},function(){exNote.textContent='Copy failed — URL is in the address bar.';});
@@ -447,9 +637,16 @@ import { createViewer } from './viewer-core.js';
   writeStyle();writeOrbit();
   viewer=createViewer(VIEW,{ interactive:true, wheelModifierOnly:EMBED, reducedMotion:reduce, zoom:zoom0,
     bscale:1, P:P, S:S, labels:P.bodyLabels, orbitLabels:P.orbitLabels,
-    onCamera:function(cam){ S.tilt=cam.tilt; var te=document.getElementById('sTilt'); if(te)te.value=Math.round(S.tilt); setTxt('tiltV',Math.round(S.tilt)); },
+    onCamera:function(cam){ S.tilt=cam.tilt; var te=document.getElementById('sTilt'); if(te)te.value=Math.round(S.tilt); setTxt('tiltV',Math.round(S.tilt)); pushCamToEnd(); updateHash(); },
     onTelemetry:emitTel });
+  if(savedUI)UI_IDS.forEach(function(id){var el=document.getElementById(id);if(!el||savedUI[id]==null)return;   // restore export/push-back controls
+    if(el.type==='checkbox')el.checked=!!savedUI[id];else el.value=savedUI[id];
+    if(id==='pushEnd')pushEndSet=true;
+    el.dispatchEvent(new Event(el.tagName==='SELECT'||el.type==='checkbox'?'change':'input'));});
   fit(); updateCaption();
+  if(savedCam&&!_zm)viewer.setConfig({zoom:savedCam.z,panX:savedCam.px*viewMin(),panY:savedCam.py*viewMin(),yaw:savedCam.yaw});   // restore the framed camera
+  if(vmodeEl.value==='push')vmodeEl.dispatchEvent(new Event('change'));          // push-back (the default): set up + show its end frame
+  updateHash();                                                                       // re-sync: the control restores above wrote the hash before the camera was back
   if(reduce)playEl.textContent='Play';
 })();
 </script>

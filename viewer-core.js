@@ -504,12 +504,12 @@ export function createViewer(canvas, config) {
   // Toggleable orbit-phase colours (P.phaseColors). Brand palette — one colour per mission regime:
   // LEO (Earth parking/raise/staging/return) · TLI+TEI (the transfer arcs) · LLO (lunar coil).
   var PHASE_RGB={LEO:'213,255,90', TLI:'255,85,0', LLO:'92,136,162'};   // lime · Blink orange · steel blue (#5C88A2)
-  function trailPaint(c,pts,head,total,rgb,k,full,occ,env,grow,cols){env=env==null?1:env;c.lineWidth=0.85*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
+  function trailPaint(c,pts,head,total,rgb,k,full,occ,env,grow,cols,wrapped){env=env==null?1:env;c.lineWidth=0.85*k*S.lw;c.lineJoin='round';c.lineCap='round';var i,al,cur,prev;
     var sc=cols?function(idx){return cols[idx]||rgb;}:function(){return rgb;};   // per-sample phase colour, else the single trail colour
     if(full){for(i=1;i<=total;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;c.strokeStyle='rgba('+sc(i)+',0.5)';c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
     if(grow){var lead=Math.max(1,total*0.16);
-      for(i=1;i<=head;i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;
-        al=(0.30+0.55*Math.max(0,1-(head-i)/lead))*env;c.strokeStyle='rgba('+sc(i)+','+al.toFixed(3)+')';
+      for(i=1;i<=(wrapped?total:head);i++){if(occ&&(occ(pts[i])||occ(pts[i-1])))continue;   // wrapped (past one loop): every sample drawn, age measured around the loop
+        al=(0.30+0.55*Math.max(0,1-((head-i+total)%total)/lead))*env;c.strokeStyle='rgba('+sc(i)+','+al.toFixed(3)+')';
         c.beginPath();c.moveTo(pts[i-1][0],pts[i-1][1]);c.lineTo(pts[i][0],pts[i][1]);c.stroke();}return;}
     var TAIL=Math.min(total,Math.max(40,Math.round(total*0.62*(P.trailLen==null?1:P.trailLen)))),j;
     for(j=0;j<TAIL;j++){cur=((head-j)%total+total)%total;prev=((head-j-1)%total+total)%total;
@@ -562,7 +562,7 @@ export function createViewer(canvas, config) {
     if(labeled('earth'))drawLabel(c,eP[0],eP[1],'Earth',eR+10,lf);
     var spts=[];for(i=0;i<=total;i++)spts.push(pr(satPlot(i)));
     var trailCols=(P.phaseColors&&P.mode==='mission'&&traj.tel)?traj.tel.map(function(t){return (t&&PHASE_RGB[t.ph])||hexRGB(S.sat);}):null;   // per-phase brand colours when P.phaseColors on (mission only)
-    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),kl,o.full,occ,o.env,o.grow,trailCols);   // kl → constant trail thickness
+    if(P.showTrail)trailPaint(c,spts,head,total,hexRGB(S.sat),kl,o.full,occ,o.env,o.grow,trailCols,o.wrapped);   // kl → constant trail thickness
     bodyOrDot(c,mP[0],mP[1],'moon',mR,S.moon,8*k*S.glow,k,'#eef2f8',sCam);
     if(labeled('moon'))drawLabel(c,mP[0],mP[1],'Moon',mR+10,lf);
     if(P.showSats){var j,A,bp,rad,inc,ang,uu,asp;for(j=0;j<AMBS.length;j++){A=AMBS[j];
@@ -574,20 +574,21 @@ export function createViewer(canvas, config) {
     if(P.showFleet && P.mode==='mission'){var fd,foff,fa,ca,sa,fidx,fq,fp,rt=traj.rate||0,
         mfrac=(traj.missionOrbits&&traj.loopOrbits)?traj.missionOrbits/traj.loopOrbits:1,mSamp=Math.round(total*mfrac),NF=Math.max(1,Math.min(24,Math.round(P.fleetCount==null?12:P.fleetCount))),
         cum=traj.cum,Lm=(P.fleetDist&&cum)?cum[Math.min(cum.length-1,mSamp)]:0,
-        srgb=hexRGB(S.sat),TL=Math.min(total,Math.max(40,Math.round(total*0.4*(P.trailLen==null?1:P.trailLen)))),jj,ci2,pi2,qb,pb2,pa2,al2;
+        srgb=hexRGB(S.sat),tlm=o.fleetTrail!=null?o.fleetTrail:(P.trailLen==null?1:P.trailLen),TL=Math.min(total,tlm<=0?0:o.fleetTrail!=null?Math.round(total*0.4*tlm):Math.max(40,Math.round(total*0.4*tlm))),fa2=o.fleetAlpha==null?1:o.fleetAlpha,jj,ci2,pi2,qb,pb2,pa2,al2;
       for(fd=1;fd<=NF;fd++){
         if(P.fleetDist&&cum&&Lm>0){foff=arcIndex(fd/(NF+1)*Lm,cum,mSamp);}
         else{foff=Math.round(fd/(NF+1)*mSamp);}
         fa=rt*foff;ca=Math.cos(fa);sa=Math.sin(fa);
+        if(o.launch&&!o.wrapped&&head<foff)continue;                                       // launch-gated (push-back video): escort fd lifts off once the lead is foff samples in
         fidx=((head-foff)%total+total)%total;
-        if(P.fleetTrail){c.lineWidth=1*kl*S.lw;pa2=null;pi2=-9;
-          for(jj=0;jj<TL;jj+=2){ci2=((fidx-jj)%total+total)%total;
+        if(fa2<=0)continue;if(P.fleetTrail&&TL>0){c.lineWidth=1*kl*S.lw;pa2=null;pi2=-9;
+          for(jj=0;jj<TL;jj+=2){if(o.launch&&!o.wrapped&&jj>fidx)break;ci2=((fidx-jj)%total+total)%total;   // …and its trail never reaches back past its own launch
             pb2=pr(escortPos(ci2,foff,ca,sa,total));
-            if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5;   // escortPos is now seamless across LOI/TEI — no regime pen-up needed, only the loop-wrap guard
+            if(pa2&&Math.abs(ci2-pi2)<=3){al2=(1-jj/TL);al2=al2*al2*0.5*fa2;   // escortPos is now seamless across LOI/TEI — no regime pen-up needed, only the loop-wrap guard
               c.strokeStyle='rgba('+(trailCols?(trailCols[ci2]||srgb):srgb)+','+al2.toFixed(3)+')';c.beginPath();c.moveTo(pa2[0],pa2[1]);c.lineTo(pb2[0],pb2[1]);c.stroke();}   // escort trails share the OTV's per-phase colours when P.phaseColors is on
             pa2=pb2;pi2=ci2;}}
         fp=pr(escortPos(fidx,foff,ca,sa,total));
-        if(occ(fp))continue;bodyOrDot(c,fp[0],fp[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);}}   // escorts = same size as the main drone (MARK.drone · markScale)
+        if(occ(fp))continue;c.save();c.globalAlpha=fa2;bodyOrDot(c,fp[0],fp[1],'sat',MARK.drone*mk,S.sat,MARK.drone*2*mk*S.glow,mk);c.restore();}}   // escorts = same size as the main drone (MARK.drone · markScale)
     if(P.showHop){
       drawLaunch(c,pr,traj.moon[head], P.mag*(R_M+(P.mode==='mission'?P.lloAlt:P.alt)), (P.mode==='mission'?P.lloInc:P.inc)*DEG, AMBS[1].phase, AMBS[1].rate, 0.20, mk, lf);
       drawLaunch(c,pr,[0,0,0], STAGE_R, P.inc*DEG, AMBS[0].phase, AMBS[0].rate, 0.66, mk, lf);}   // mk → rockets sized by MARK.rocket · markScale
@@ -629,10 +630,15 @@ export function createViewer(canvas, config) {
   function drawFrame(head,phi,full,env,grow){ telHead=head; paint(ctx,W,H,head,phi,{transparent:false,full:full,env:env,grow:grow}); }
   function staticFull(){ drawFrame(lastHead(), camYaw, true); }
   // Paint one frame into an arbitrary 2D context at an arbitrary head/phi (drives studio PNG + video export).
+  // opts.zoom / panX / panY override the camera for this frame only (animated push-back); opts.launch gates the escorts.
   function renderFrameFn(targetCtx, w, h, opts){ opts=opts||{};
     if(opts.now!=null) NOW=opts.now;                                   // advance rocket/star/globe timing for video
     var head=opts.head!=null?opts.head:lastHead(), phi=opts.phi!=null?opts.phi:camYaw;
-    paint(targetCtx, w, h, head, phi, {transparent:!!opts.transparent, full:!!opts.full, env:opts.env, grow:!!opts.grow}); }
+    var total=lastHead(), wrapped=head>total; if(wrapped) head=head%total;  // head may run past one loop (long videos): the mission loops seamlessly
+    var z0=zoom,px0=panX,py0=panY;
+    if(opts.zoom!=null)zoom=opts.zoom; if(opts.panX!=null)panX=opts.panX; if(opts.panY!=null)panY=opts.panY;
+    try{ paint(targetCtx, w, h, head, phi, {transparent:!!opts.transparent, full:!!opts.full, env:opts.env, grow:!!opts.grow, launch:!!opts.launch, wrapped:wrapped, fleetTrail:opts.fleetTrail, fleetAlpha:opts.fleetAlpha}); }
+    finally{ zoom=z0; panX=px0; panY=py0; } }
 
   var playing = !reduce, t0=null, rafId=null;
   function frame(now){ if(t0===null)t0=now; NOW=now; camPhi=camYaw+S.drift*Math.sin(now*CAM_W);
@@ -722,12 +728,15 @@ export function createViewer(canvas, config) {
 
   // ================= PUBLIC API =================
   return {
-    // Live-update config. Pass {P:{...}} / {S:{...}} to merge, zoom/bscale to set,
+    // Live-update config. Pass {P:{...}} / {S:{...}} to merge, zoom/panX/panY/yaw/bscale to set,
     // recompute:true when a sim param (mode/preset/alt/inc/...) changed.
     setConfig: function(next){ next=next||{};
       if(next.P) assign(P, next.P);
       if(next.S) assign(S, next.S);
       if(next.zoom!=null) zoom=next.zoom;
+      if(next.panX!=null) panX=next.panX;
+      if(next.panY!=null) panY=next.panY;
+      if(next.yaw!=null) camYaw=next.yaw;
       if(next.cx!=null) cxFrac=next.cx;
       if(next.cy!=null) cyFrac=next.cy;
       if(next.bscale!=null) bscaleVal=next.bscale;
@@ -758,15 +767,19 @@ export function createViewer(canvas, config) {
     resize: resize,                                   // resize(cssW, cssH[, dpr])
     // Paint one static full frame (last head, current camera) into an arbitrary 2D context — studio PNG.
     snapshot: function(targetCtx, w, h, opts){ renderFrameFn(targetCtx, w, h, assign({full:true}, opts||{})); },
-    // Paint an arbitrary frame: opts {head, phi, grow, transparent, env, now} — studio video/draw-sequence export.
+    // Paint an arbitrary frame: opts {head, phi, grow, transparent, env, now, zoom, panX, panY, launch,
+    //   fleetTrail (escort trail length ×, overrides P.trailLen; 0 = none), fleetAlpha (escort opacity 0..1)} — studio video export.
     renderFrame: renderFrameFn,
     // Geometry access for studio SVG export (world→screen). project(pt)=getProjector(...)(pt).
-    getProjector: function(w, h, phi){ return projector(w, h, phi!=null?phi:camYaw); },
+    // cam {zoom,panX,panY} optionally overrides the live camera (studio solves the push-back camera path with it).
+    getProjector: function(w, h, phi, cam){ phi=phi!=null?phi:camYaw; if(!cam) return projector(w, h, phi);
+      var z0=zoom,px0=panX,py0=panY; if(cam.zoom!=null)zoom=cam.zoom; if(cam.panX!=null)panX=cam.panX; if(cam.panY!=null)panY=cam.panY;
+      try{ return projector(w, h, phi); } finally{ zoom=z0; panX=px0; panY=py0; } },
     satPlot: satPlot,                                 // world position of trajectory sample i (applies orbit-mode magnify)
     lastHead: lastHead,                               // final sample index
     skf: skf,                                         // studio's body-size scale factor skf(W,H)
     setBodyImage: function(which, img, url){ bodyImg[which]=img; bodyData[which]=url||null; if(!playing) staticFull(); },
-    getState: function(){ return { P:P, S:S, zoom:zoom, camYaw:camYaw, panX:panX, panY:panY, satPeriod:satPeriod, traj:traj, NOW:NOW, telemetry:telemetry(telHead) }; },
+    getState: function(){ return { P:P, S:S, zoom:zoom, camYaw:camYaw, panX:panX, panY:panY, satPeriod:satPeriod, traj:traj, NOW:NOW, head:telHead, telemetry:telemetry(telHead) }; },
     isPlaying: function(){ return playing; },
     destroy: function(){ pause(); for(var i=0;i<teardown.length;i++) teardown[i](); teardown=[]; }
   };
